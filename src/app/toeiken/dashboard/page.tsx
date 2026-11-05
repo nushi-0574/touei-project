@@ -127,9 +127,25 @@ export default function DashboardPage() {
         <Breadcrumbs items={[{ label: '東栄県住民マイページ' }]} />
 
         <div className="bg-white border border-slate-300 rounded shadow-sm p-6 sm:p-8 space-y-6">
-          <div className="border-b border-slate-200 pb-3">
-            <h1 className="text-xl font-bold text-slate-900">東栄県民マイページ</h1>
-            <p className="text-xs text-slate-500 mt-1">ご登録アカウントの情報確認および住民情報の登録・修正を行います。</p>
+          <div className="border-b border-slate-200 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-bold text-slate-900">東栄県民マイページ</h1>
+              <p className="text-xs text-slate-500 mt-1">ご登録アカウントの情報確認および住民情報の登録・修正を行います。</p>
+            </div>
+
+            {/* 管理者用ダッシュボード切り替えボタン（管理者のみ表示） */}
+            {profile?.is_admin && (
+              <a
+                href="/admin"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white text-xs font-bold rounded shadow transition-colors shrink-0"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                管理者画面へ
+              </a>
+            )}
           </div>
 
           {loading ? (
@@ -145,6 +161,12 @@ export default function DashboardPage() {
               <div className="bg-slate-50 p-4 border border-slate-200 rounded text-xs space-y-2">
                 <p><span className="font-bold text-slate-700">登録メールアドレス:</span> {user.email}</p>
                 <p><span className="font-bold text-slate-700">ユーザーID:</span> {user.id}</p>
+                <p>
+                  <span className="font-bold text-slate-700">アカウント権限:</span>{' '}
+                  <span className={profile?.is_admin ? 'text-blue-700 font-bold' : 'text-slate-600'}>
+                    {profile?.is_admin ? '管理者' : '一般住民'}
+                  </span>
+                </p>
               </div>
 
               {/* 住民プロフィール情報の追加・修正フォーム */}
