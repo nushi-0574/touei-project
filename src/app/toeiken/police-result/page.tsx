@@ -27,8 +27,9 @@ export default function PoliceResultPage() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 50 }, (_, i) => currentYear - i);
+  // 静的プレレンダリングエラーを回避するため固定の基準年（2026年）から50年分を生成
+  const baseYear = 2026;
+  const years = Array.from({ length: 50 }, (_, i) => baseYear - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
   const days = Array.from({ length: 31 }, (_, i) => i + 1);
 
