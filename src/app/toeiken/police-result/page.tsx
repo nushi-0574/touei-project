@@ -1,215 +1,195 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import Header from '../../components/Header';
 import Breadcrumbs from '../../components/Breadcrumbs';
+import Toast from '../../components/Toast';
+
+// 合否結果の型定義
+type ExamResult = {
+  id: string;
+  examinee_number: string;
+  name: string;
+  status: 'passed' | 'failed'; // 'passed' = 合格, 'failed' = 不合格
+};
 
 export default function PoliceResultPage() {
-  const [examNumber, setExamNumber] = useState('');
-  const [birthYear, setBirthYear] = useState('2006');
-  const [birthMonth, setBirthMonth] = useState('1');
-  const [birthDay, setBirthDay] = useState('1');
+  const [examineeNumber, setExamineeNumber] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  
+  // 状態管理
+  const [isLoading, setIsLoading] = useState(false); // ローディング中フラグ
+  const [resultData, setResultData] = useState<ExamResult | null>(null); // 取得した合否データ
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{
-    status: 'pass' | 'fail' | 'not_found';
-    name?: string;
-    number?: string;
-    department?: string;
-  } | null>(null);
-
-  const currentYear = 2026;
-  const years = Array.from({ length: 101 }, (_, i) => currentYear - i);
-  const months = Array.from({ length: 12 }, (_, i) => i + 1);
-  const days = Array.from({ length: 31 }, (_, i) => i + 1);
-
+  // 照会処理
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setResult(null);
-
-    const formattedMonth = String(birthMonth).padStart(2, '0');
-    const formattedDay = String(birthDay).padStart(2, '0');
-    const birthDateStr = `${birthYear}-${formattedMonth}-${formattedDay}`;
-    const cleanNumber = examNumber.trim().toUpperCase();
-
-    // Supabaseから一致する受考番号と生年月日を検索
-    const { data, error } = await supabase
-      .from('police_exam_results')
-      .select('*')
-      .eq('exam_number', cleanNumber)
-      .eq('birth_date', birthDateStr)
-      .single();
-
-    if (error || !data) {
-      setResult({ status: 'not_found' });
-    } else {
-      setResult({
-        status: data.status,
-        name: data.full_name,
-        number: data.exam_number,
-        department: data.department || '警務部 採用普及課（第一期条件付き採用）',
-      });
+    if (!examineeNumber || !birthDate) {
+      setToast({ message: '受考番号と生年月日を入力してください。', type: 'error' });
+      return;
     }
-    setLoading(false);
+
+    setIsLoading(true); // ローディング開始（画面操作不可＆ぐるぐる表示）
+
+    try {
+      // Supabaseから警察試験結果を照会
+      const { data, error } = await supabase
+        .from('police_exam_results')
+        .select('*')
+        .eq('examinee_number', examineeNumber.trim())
+        .eq('birth_date', birthDate)
+        .single();
+
+      if (error || !data) {
+        setToast({ message: '該当する受考データが見つかりませんでした。', type: 'error' });
+        setIsLoading(false);
+        return;
+      }
+
+      // 演出用のわずかなウェイト
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      // 取得したデータをセット（これにより全画面の合否結果ビューに切り替わる）
+      setResultData({
+        id: data.id,
+        examinee_number: data.examinee_number,
+        name: data.name,
+        status: data.status, // 'passed' または 'failed'
+      });
+    } catch (err) {
+      setToast({ message: '通信エラーが発生しました。', type: 'error' });
+    } finally {
+      setIsLoading(false); // ローディング終了
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col">
+    <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col relative">
       <Header />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full">
-        <Breadcrumbs
-          items={[
-            { label: '東栄県ポータル', href: '/toeiken/dashboard' },
-            { label: '東栄県警察 合否照会' },
-          ]}
-        />
+      {/* ==========================================
+          1. 照会中の全画面オーバーレイ（操作不可・白半透明・ぐるぐる）
+          ========================================== */}
+      {isLoading && (
+        <div className="fixed inset-0 z-50 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center select-none">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-sm font-bold text-slate-700 tracking-wider">照会中...</p>
+        </div>
+      )}
 
-        <div className="bg-white border border-slate-200 rounded p-6 sm:p-8">
-          <div className="border-b border-slate-200 pb-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-[10px] bg-slate-800 text-slate-100 px-2 py-0.5 rounded font-medium">
-                東栄県警察本部 警務部 採用係
-              </span>
-              <h1 className="text-xl font-bold text-slate-900 mt-2">
-                第一期条件付き採用職員選考試験 合否照会
-              </h1>
-              <p className="text-xs text-slate-500 mt-1">
-                受考番号および生年月日を入力のうえ、「照会する」ボタンを押してください。
-              </p>
-            </div>
-          </div>
-
-          <form onSubmit={handleSearch} className="bg-slate-50 border border-slate-200 rounded p-6 mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  受考番号 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={examNumber}
-                  onChange={(e) => setExamNumber(e.target.value)}
-                  required
-                  placeholder="例: TP-2026-001"
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded text-sm text-slate-800 focus:outline-none focus:border-emerald-700"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">※受考票に記載された番号を入力してください。</p>
+      {/* ==========================================
+          2. 全画面の合否結果表示エリア（結果がある場合）
+          ========================================== */}
+      {resultData ? (
+        <main className="flex-1 w-full flex flex-col items-center justify-center p-6 animate-fadeIn">
+          {resultData.status === 'passed' ? (
+            /* --- 合格用 全画面ビュー --- */
+            <div className="w-full max-w-xl bg-white border-2 border-emerald-500 rounded-xl shadow-xl p-8 text-center">
+              <div className="inline-block px-4 py-1.5 bg-emerald-100 text-emerald-700 rounded-full mb-4 text-xs font-bold tracking-wider">
+                最終合格
               </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  生年月日 <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <select
-                    value={birthYear}
-                    onChange={(e) => setBirthYear(e.target.value)}
-                    className="px-2 py-2 bg-white border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:border-emerald-700"
-                  >
-                    {years.map((y) => (
-                      <option key={y} value={y}>{y}年</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={birthMonth}
-                    onChange={(e) => setBirthMonth(e.target.value)}
-                    className="px-2 py-2 bg-white border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:border-emerald-700"
-                  >
-                    {months.map((m) => (
-                      <option key={m} value={m}>{m}月</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={birthDay}
-                    onChange={(e) => setBirthDay(e.target.value)}
-                    className="px-2 py-2 bg-white border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:border-emerald-700"
-                  >
-                    {days.map((d) => (
-                      <option key={d} value={d}>{d}日</option>
-                    ))}
-                  </select>
+              <h1 className="text-2xl font-extrabold text-slate-900 mb-2">合格おめでとうございます</h1>
+              <p className="text-xs text-slate-500 mb-6">固有ID: {resultData.id}</p>
+              
+              <div className="bg-slate-50 border border-slate-200 rounded p-4 mb-6 text-left space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">受考番号:</span>
+                  <span className="font-bold text-slate-800">{resultData.examinee_number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">氏名:</span>
+                  <span className="font-bold text-slate-800">{resultData.name}</span>
                 </div>
               </div>
-            </div>
 
-            <div className="mt-6 text-right">
               <button
-                type="submit"
-                disabled={loading}
-                className="px-6 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-medium text-xs rounded transition-colors disabled:opacity-50"
+                onClick={() => setResultData(null)}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded transition-colors"
               >
-                {loading ? '照会中...' : '照会する'}
+                照会画面に戻る
               </button>
             </div>
-          </form>
+          ) : (
+            /* --- 不合格用 全画面ビュー --- */
+            <div className="w-full max-w-xl bg-white border-2 border-slate-300 rounded-xl shadow-xl p-8 text-center">
+              <div className="inline-block px-4 py-1.5 bg-slate-100 text-slate-600 rounded-full mb-4 text-xs font-bold tracking-wider">
+                不合格
+              </div>
+              <h1 className="text-2xl font-extrabold text-slate-900 mb-2">選考結果のお知らせ</h1>
+              <p className="text-xs text-slate-500 mb-6">固有ID: {resultData.id}</p>
 
-          {result && (
-            <div className="border border-slate-300 rounded overflow-hidden transition-all">
-              {result.status === 'pass' && (
-                <div className="bg-emerald-50 border-l-4 border-emerald-700 p-6">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span className="bg-emerald-700 text-white text-[10px] font-bold px-2 py-0.5 rounded">
-                      結果：合格
-                    </span>
-                    <span className="text-xs text-emerald-900 font-bold">【条件付き採用決定】</span>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 mb-2">
-                    合格おめでとうございます
-                  </h3>
-                  <p className="text-xs text-slate-700 leading-relaxed mb-4">
-                    東栄県警察 第一期条件付き採用職員選考試験の結果、貴殿は合格と判定されました。指定の着任手続き手引きおよび教本資料をご確認のうえ、指定日に教養課程へ着任してください。
-                  </p>
-
-                  <div className="bg-white border border-emerald-200 rounded p-4 text-xs space-y-2 mb-4">
-                    <p><span className="font-semibold text-slate-600">氏名:</span> {result.name}</p>
-                    <p><span className="font-semibold text-slate-600">受考番号:</span> {result.number}</p>
-                    <p><span className="font-semibold text-slate-600">配属予定:</span> {result.department}</p>
-                  </div>
-
-                  <a
-                    href="/dashboard"
-                    className="inline-block bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-medium px-4 py-2 rounded transition-colors"
-                  >
-                    教本・手続きドキュメントを確認する
-                  </a>
+              <div className="bg-slate-50 border border-slate-200 rounded p-4 mb-6 text-left space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">受考番号:</span>
+                  <span className="font-bold text-slate-800">{resultData.examinee_number}</span>
                 </div>
-              )}
-
-              {result.status === 'fail' && (
-                <div className="bg-slate-50 border-l-4 border-slate-500 p-6">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span className="bg-slate-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">
-                      結果：不合格
-                    </span>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 mb-2">
-                    選考結果のご案内
-                  </h3>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    慎重なる選考を行いました結果、誠に残念ながら今回は採用を見送らせていただくこととなりました。多数のご応募をいただき感謝申し上げます。
-                  </p>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">氏名:</span>
+                  <span className="font-bold text-slate-800">{resultData.name}</span>
                 </div>
-              )}
+              </div>
 
-              {result.status === 'not_found' && (
-                <div className="bg-amber-50 border-l-4 border-amber-600 p-6">
-                  <h3 className="text-sm font-bold text-amber-900 mb-1">
-                    該当するデータが見つかりません
-                  </h3>
-                  <p className="text-xs text-amber-800 leading-relaxed">
-                    入力された「受考番号」または「生年月日」に誤りがある可能性があります。再度お確かめのうえ入力してください。
-                  </p>
-                </div>
-              )}
+              <button
+                onClick={() => setResultData(null)}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded transition-colors"
+              >
+                照会画面に戻る
+              </button>
             </div>
           )}
-        </div>
-      </main>
+        </main>
+      ) : (
+        /* ==========================================
+            通常の照会フォーム画面
+            ========================================== */
+        <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full">
+          <Breadcrumbs items={[{ label: '警察官採用試験 合否照会' }]} />
+
+          <div className="bg-white border border-slate-200 rounded p-8 shadow-sm">
+            <div className="mb-6 pb-4 border-b border-slate-100">
+              <h1 className="text-xl font-bold text-slate-900">合格発表 照会フォーム</h1>
+              <p className="text-xs text-slate-500 mt-1">
+                受考番号と生年月日を入力し、照会ボタンを押してください。
+              </p>
+            </div>
+
+            <form onSubmit={handleSearch} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">受考番号</label>
+                <input
+                  type="text"
+                  value={examineeNumber}
+                  onChange={(e) => setExamineeNumber(e.target.value)}
+                  placeholder="例: POL-2026-001"
+                  className="w-full px-3 py-2 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">生年月日</label>
+                <input
+                  type="date"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded transition-colors mt-4 disabled:opacity-50"
+              >
+                結果を照会する
+              </button>
+            </form>
+          </div>
+        </main>
+      )}
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
