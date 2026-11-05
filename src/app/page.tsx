@@ -1,29 +1,81 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Header from './components/Header';
+import { supabase } from '../lib/supabase';
+
+type NewsItem = {
+  id: number;
+  date_str: string;
+  title: string;
+  link_url: string;
+  category: string;
+};
 
 export default function Home() {
+  const [emergencyText, setEmergencyText] = useState('現在、東栄県内における重大な警報・緊急情報はありません。');
+  const [isEmergencyActive, setIsEmergencyActive] = useState(false);
+  const [newsList, setNewsList] = useState<NewsItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // ページ読み込み時にSupabaseからデータを取得
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        // 1. サイト設定（緊急情報など）の取得
+        const { data: settingData } = await supabase
+          .from('site_settings')
+          .select('*')
+          .eq('id', 1)
+          .single();
+
+        if (settingData) {
+          setEmergencyText(settingData.emergency_text);
+          setIsEmergencyActive(settingData.is_emergency_active);
+        }
+
+        // 2. 新着情報の取得
+        const { data: newsData } = await supabase
+          .from('news_items')
+          .select('*')
+          .order('id', { ascending: false });
+
+        if (newsData) {
+          setNewsList(newsData);
+        }
+      } catch (err) {
+        console.error('データ取得エラー:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
       <Header />
 
       {/* ==========================================
-          防災・緊急情報ティッカー（官公庁風）
+          防災・緊急情報ティッカー（管理画面からON/OFF・文字変更可能）
           ========================================== */}
-      <div className="bg-red-900 text-white text-xs py-2 px-4 border-b border-red-950">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="bg-red-700 text-white px-2 py-0.5 rounded text-[10px] font-bold tracking-wider">防災・緊急</span>
-            <span>現在、東栄県内における重大な警報・緊急情報はありません。</span>
+      {isEmergencyActive && (
+        <div className="bg-red-900 text-white text-xs py-2 px-4 border-b border-red-950">
+          <div className="max-w-6xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="bg-red-700 text-white px-2 py-0.5 rounded text-[10px] font-bold tracking-wider">防災・緊急</span>
+              <span>{emergencyText}</span>
+            </div>
+            <Link href="/toeiken" className="underline hover:text-red-200 text-[11px]">
+              詳細・過去の情報 &rarr;
+            </Link>
           </div>
-          <Link href="/toeiken" className="underline hover:text-red-200 text-[11px]">
-            詳細・過去の情報 &rarr;
-          </Link>
         </div>
-      </div>
+      )}
 
-      {/* ==========================================
-          グローバルナビゲーション（行政ポータル風）
-          ========================================== */}
+      {/* グローバルナビゲーション */}
       <nav className="bg-slate-900 text-white border-b border-slate-800 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 flex flex-wrap items-center justify-between py-3">
           <div className="flex items-center gap-3">
@@ -33,97 +85,54 @@ export default function Home() {
           </div>
           <div className="flex flex-wrap gap-1 sm:gap-2 text-xs">
             <Link href="/toeiken" className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded transition-colors text-slate-200">
-              分類から探す
-            </Link>
-            <Link href="/toeiken" className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded transition-colors text-slate-200">
-              目的から探す
-            </Link>
-            <Link href="/toeiken" className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded transition-colors text-slate-200">
-              組織から探す
+              住民ポータル
             </Link>
             <Link href="/toeiken/police-result" className="px-3 py-1.5 bg-blue-700 hover:bg-blue-600 rounded transition-colors text-white font-semibold">
-              採用・試験情報
+              合否照会
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* ==========================================
-          メインビジュアル & 注目情報エリア
-          ========================================== */}
       <main className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 py-8 w-full space-y-8">
-        
-        {/* 注意喚起 (Attention) セクション */}
-        <section className="bg-amber-50 border border-amber-200 rounded p-4 text-xs">
-          <h2 className="font-bold text-amber-900 mb-2 flex items-center gap-1.5 text-sm">
-            <span className="w-2 h-2 rounded-full bg-amber-600 inline-block"></span>
-            重要なお知らせ・注意喚起
-          </h2>
-          <ul className="space-y-1.5 text-amber-900 list-disc list-inside">
-            <li>
-              <Link href="/toeiken" className="hover:underline text-blue-800 font-medium">
-                東栄県住民ポータル（Discord連携）のシステムメンテナンスおよび認証手順について
-              </Link>
-            </li>
-            <li>
-              <Link href="/toeiken/police-result" className="hover:underline text-blue-800 font-medium">
-                令和8年度 東栄県警察官採用試験の最終合否照会システムが公開されました。
-              </Link>
-            </li>
-            <li>東栄県職員や関係者を名乗る不審な連絡や詐欺行為にご注意ください。</li>
-          </ul>
-        </section>
-
-        {/* 2カラムレイアウト（新着情報 ＆ 注目コンテンツ） */}
+        {/* メインセクション */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* 左側：新着情報（2カラム分） */}
+          {/* 左側：新着情報（データベースから動的表示） */}
           <section className="lg:col-span-2 bg-white border border-slate-300 rounded shadow-sm p-6">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
               <h2 className="text-base font-bold text-slate-900 border-l-4 border-blue-600 pl-2">
                 新着情報・更新情報
               </h2>
-              <span className="text-xs text-slate-500">最新情報一覧</span>
+              <span className="text-xs text-slate-500">管理画面から追加可能</span>
             </div>
             
-            <ul className="divide-y divide-slate-100 text-xs">
-              <li className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <div className="flex items-center gap-3">
-                  <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-mono shrink-0">11月5日</span>
-                  <Link href="/toeiken/police-result" className="text-blue-700 hover:underline font-medium">
-                    警察官採用試験 受考者向けの合否照会システムをアップデートしました。
-                  </Link>
-                </div>
-                <span className="text-[10px] bg-blue-50 text-blue-800 px-2 py-0.5 rounded w-fit">採用情報</span>
-              </li>
-              <li className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <div className="flex items-center gap-3">
-                  <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-mono shrink-0">11月4日</span>
-                  <Link href="/toeiken" className="text-blue-700 hover:underline font-medium">
-                    東栄プロジェクト公式Discordサーバー連携による住民認証の受付を開始。
-                  </Link>
-                </div>
-                <span className="text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded w-fit">住民サービス</span>
-              </li>
-              <li className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <div className="flex items-center gap-3">
-                  <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-mono shrink-0">11月1日</span>
-                  <Link href="/" className="text-blue-700 hover:underline font-medium">
-                    東栄ポータルサイト（v1.0）の商用運用およびVercel自動デプロイ環境を構築。
-                  </Link>
-                </div>
-                <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded w-fit">行政運営</span>
-              </li>
-            </ul>
-
-            <div className="mt-6 pt-3 border-t border-slate-100 text-right">
-              <Link href="/toeiken" className="text-xs font-semibold text-blue-700 hover:underline">
-                すべての新着情報をみる &rarr;
-              </Link>
-            </div>
+            {loading ? (
+              <p className="text-xs text-slate-500 py-4 text-center">読み込み中...</p>
+            ) : newsList.length === 0 ? (
+              <p className="text-xs text-slate-500 py-4 text-center">新着情報はありません。</p>
+            ) : (
+              <ul className="divide-y divide-slate-100 text-xs">
+                {newsList.map((item) => (
+                  <li key={item.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <div className="flex items-center gap-3">
+                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-mono shrink-0">
+                        {item.date_str}
+                      </span>
+                      <Link href={item.link_url} className="text-blue-700 hover:underline font-medium">
+                        {item.title}
+                      </Link>
+                    </div>
+                    <span className="text-[10px] bg-blue-50 text-blue-800 px-2 py-0.5 rounded w-fit">
+                      {item.category}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
-          {/* 右側：主要バナー・クイックアクセス */}
+          {/* 右側：クイックアクセス */}
           <aside className="space-y-4">
             <div className="bg-slate-900 text-white border border-slate-800 rounded p-5 shadow-sm">
               <h3 className="text-sm font-bold mb-3 border-b border-slate-700 pb-2 text-blue-400">
@@ -156,58 +165,10 @@ export default function Home() {
             </div>
           </aside>
         </div>
-
-        {/* ==========================================
-            東栄の基本情報（組織・各部門）
-            ========================================== */}
-        <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
-          <h2 className="text-base font-bold text-slate-900 border-l-4 border-slate-700 pl-2 mb-6">
-            東栄県の組織・基本情報
-          </h2>
-          
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-            <div className="border border-slate-200 rounded p-4 text-center hover:bg-slate-50 transition-colors">
-              <p className="font-bold text-slate-800 mb-1">知事室・行政運営</p>
-              <p className="text-[11px] text-slate-500">総合企画・条例管理</p>
-            </div>
-            <div className="border border-slate-200 rounded p-4 text-center hover:bg-slate-50 transition-colors">
-              <p className="font-bold text-slate-800 mb-1">東栄県警察本部</p>
-              <p className="text-[11px] text-slate-500">治安維持・採用試験</p>
-            </div>
-            <div className="border border-slate-200 rounded p-4 text-center hover:bg-slate-50 transition-colors">
-              <p className="font-bold text-slate-800 mb-1">住民文化部</p>
-              <p className="text-[11px] text-slate-500">コミュニティ・広報</p>
-            </div>
-            <div className="border border-slate-200 rounded p-4 text-center hover:bg-slate-50 transition-colors">
-              <p className="font-bold text-slate-800 mb-1">都市整備・インフラ</p>
-              <p className="text-[11px] text-slate-500">仮想空間構築・管理</p>
-            </div>
-          </div>
-        </section>
-
       </main>
 
-      {/* ==========================================
-          フッター（官公庁フォーマット）
-          ========================================== */}
       <footer className="border-t border-slate-300 bg-slate-900 text-slate-300 mt-12 py-8 text-xs">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <p className="font-bold text-white text-sm mb-2">東栄県庁（東栄プロジェクト運営局）</p>
-            <p className="text-slate-400 leading-relaxed">
-              〒540-8570 東栄県本庁舎 総合行政窓口<br />
-              代表連絡先：公式Discordコミュニティにお問い合わせください。
-            </p>
-          </div>
-          <div className="flex flex-col md:items-end justify-center gap-2">
-            <div className="flex flex-wrap gap-4 text-slate-300">
-              <Link href="/toeiken" className="hover:underline">利用規約</Link>
-              <Link href="/toeiken" className="hover:underline">プライバシーポリシー</Link>
-              <Link href="/toeiken" className="hover:underline">サイトマップ</Link>
-            </div>
-          </div>
-        </div>
-        <div className="border-t border-slate-800 pt-6 text-center text-slate-500 text-[11px]">
+        <div className="max-w-6xl mx-auto px-4 text-center text-slate-500 text-[11px]">
           &copy; 2026 葵プロジェクト / 東栄プロジェクト (Touei Prefectural Government). All Rights Reserved.
         </div>
       </footer>

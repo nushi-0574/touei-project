@@ -1,378 +1,321 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import Header from '../components/Header';
-import Breadcrumbs from '../components/Breadcrumbs';
 import Toast from '../components/Toast';
+import { supabase } from '../../lib/supabase';
+
+type NewsItem = {
+  id: number;
+  date_str: string;
+  title: string;
+  link_url: string;
+  category: string;
+};
 
 export default function AdminPage() {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [profilesList, setProfilesList] = useState<any[]>([]);
-  const [examResults, setExamResults] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // 合否登録・編集フォームの状態
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [examNumber, setExamNumber] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [birthDate, setBirthDate] = useState('2006-01-01');
-  const [status, setStatus] = useState<'pass' | 'fail'>('pass');
-  const [department, setDepartment] = useState('警務部 採用普及課（第一期条件付き採用）');
+  // 1. サイト緊急情報の設定ステート
+  const [emergencyText, setEmergencyText] = useState('');
+  const [isEmergencyActive, setIsEmergencyActive] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
-  const router = useRouter();
+  // 2. 新着情報一覧 & 新規入力フォームのステート
+  const [newsList, setNewsList] = useState<NewsItem[]>([]);
+  const [newDate, setNewDate] = useState('');
+  const [newTitle, setNewTitle] = useState('');
+  const [newLink, setNewLink] = useState('');
+  const [newCategory, setNewCategory] = useState('お知らせ');
+  const [isAddingNews, setIsAddingNews] = useState(false);
 
+  // 初期データ取得
   useEffect(() => {
-    async function checkAdmin() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login');
-        return;
-      }
-      setUser(session.user);
+    fetchAdminData();
+  }, []);
 
-      const { data: profileData } = await supabase
-        .from('profiles')
+  const fetchAdminData = async () => {
+    setLoading(true);
+    try {
+      // サイト設定の取得
+      const { data: settingData } = await supabase
+        .from('site_settings')
         .select('*')
-        .eq('id', session.user.id)
+        .eq('id', 1)
         .single();
 
-      if (!profileData || profileData.role !== 'admin') {
-        router.push('/dashboard');
-        return;
+      if (settingData) {
+        setEmergencyText(settingData.emergency_text || '');
+        setIsEmergencyActive(settingData.is_emergency_active || false);
       }
 
-      setProfile(profileData);
-      await fetchData();
+      // 新着情報の取得
+      const { data: newsData } = await supabase
+        .from('news_items')
+        .select('*')
+        .order('id', { ascending: false });
+
+      if (newsData) {
+        setNewsList(newsData);
+      }
+    } catch (err) {
+      setToast({ message: 'データの取得に失敗しました。', type: 'error' });
+    } finally {
       setLoading(false);
     }
-
-    checkAdmin();
-  }, [router]);
-
-  async function fetchData() {
-    const { data: profs } = await supabase.from('profiles').select('*');
-    if (profs) setProfilesList(profs);
-
-    const { data: results } = await supabase.from('police_exam_results').select('*').order('created_at', { ascending: false });
-    if (results) setExamResults(results);
-  }
-
-  const handleUpdateRole = async (id: string, newRole: string) => {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: newRole })
-      .eq('id', id);
-
-    if (error) {
-      setToast({ message: 'ロール更新失敗: ' + error.message, type: 'error' });
-    } else {
-      setToast({ message: 'ロールを更新しました。', type: 'success' });
-      fetchData();
-    }
   };
 
-  // 登録または更新の保存処理
-  const handleSaveExamResult = async (e: React.FormEvent) => {
+  // 緊急情報設定の保存
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSavingSettings(true);
 
-    if (editingId) {
-      // 編集モード
+    try {
       const { error } = await supabase
-        .from('police_exam_results')
-        .update({
-          exam_number: examNumber.trim().toUpperCase(),
-          full_name: fullName,
-          birth_date: birthDate,
-          status: status,
-          department: department,
-        })
-        .eq('id', editingId);
+        .from('site_settings')
+        .upsert({
+          id: 1,
+          emergency_text: emergencyText,
+          is_emergency_active: isEmergencyActive,
+          updated_at: new Date().toISOString(),
+        });
 
-      if (error) {
-        setToast({ message: '更新エラー: ' + error.message, type: 'error' });
-      } else {
-        setToast({ message: '合否データを更新しました。', type: 'success' });
-        resetExamForm();
-        fetchData();
-      }
-    } else {
-      // 新規登録モード
-      const { error } = await supabase.from('police_exam_results').insert([
-        {
-          exam_number: examNumber.trim().toUpperCase(),
-          full_name: fullName,
-          birth_date: birthDate,
-          status: status,
-          department: department,
-        },
-      ]);
-
-      if (error) {
-        setToast({ message: '登録エラー: ' + error.message, type: 'error' });
-      } else {
-        setToast({ message: '合否データを登録しました。', type: 'success' });
-        resetExamForm();
-        fetchData();
-      }
+      if (error) throw error;
+      setToast({ message: '緊急情報設定を更新しました。', type: 'success' });
+    } catch (err) {
+      setToast({ message: '設定の保存に失敗しました。', type: 'error' });
+    } finally {
+      setIsSavingSettings(false);
     }
   };
 
-  // 編集開始：選択したデータの値をフォームにセット
-  const handleEditClick = (item: any) => {
-    setEditingId(item.id);
-    setExamNumber(item.exam_number);
-    setFullName(item.full_name);
-    setBirthDate(item.birth_date);
-    setStatus(item.status);
-    setDepartment(item.department || '警務部 採用普及課（第一期条件付き採用）');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  // 新着情報の追加
+  const handleAddNews = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDate || !newTitle) {
+      setToast({ message: '日付とタイトルを入力してください。', type: 'error' });
+      return;
+    }
 
-  // フォームリセット
-  const resetExamForm = () => {
-    setEditingId(null);
-    setExamNumber('');
-    setFullName('');
-    setBirthDate('2006-01-01');
-    setStatus('pass');
-    setDepartment('警務部 採用普及課（第一期条件付き採用）');
-  };
+    setIsAddingNews(true);
 
-  const handleDeleteExamResult = async (id: string) => {
-    if (!confirm('本当にこの合否データを削除しますか？')) return;
-    const { error } = await supabase.from('police_exam_results').delete().eq('id', id);
-    if (error) {
-      setToast({ message: '削除失敗: ' + error.message, type: 'error' });
-    } else {
-      setToast({ message: 'データを削除しました。', type: 'success' });
-      fetchData();
+    try {
+      const { data, error } = await supabase
+        .from('news_items')
+        .insert([
+          {
+            date_str: newDate,
+            title: newTitle,
+            link_url: newLink || '/toeiken',
+            category: newCategory,
+          },
+        ])
+        .select();
+
+      if (error) throw error;
+
+      if (data) {
+        setNewsList([data[0], ...newsList]);
+        setNewDate('');
+        setNewTitle('');
+        setNewLink('');
+        setToast({ message: '新着情報を追加しました。', type: 'success' });
+      }
+    } catch (err) {
+      setToast({ message: '新着情報の追加に失敗しました。', type: 'error' });
+    } finally {
+      setIsAddingNews(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center">
-        <div className="w-6 h-6 border-2 border-slate-300 border-t-[#0046ff] rounded-full animate-spin mb-3"></div>
-        <p className="text-slate-500 text-xs">読み込み中...</p>
-      </div>
-    );
-  }
+  // 新着情報の削除
+  const handleDeleteNews = async (id: number) => {
+    if (!confirm('この新着情報を削除してもよろしいですか？')) return;
+
+    try {
+      const { error } = await supabase.from('news_items').delete().eq('id', id);
+      if (error) throw error;
+
+      setNewsList(newsList.filter((item) => item.id !== id));
+      setToast({ message: '新着情報を削除しました。', type: 'success' });
+    } catch (err) {
+      setToast({ message: '削除に失敗しました。', type: 'error' });
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800">
+    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
       <Header />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        <Breadcrumbs items={[{ label: 'メインメニュー', href: '/dashboard' }, { label: 'システム管理パネル' }]} />
 
-        <div className="bg-white border border-slate-200 rounded p-6 mb-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
-            <div>
-              <h1 className="text-xl font-bold text-slate-900">システム管理パネル</h1>
-              <p className="text-xs text-slate-500 mt-1">登録ユーザーおよび東栄県警察採用試験データの管理</p>
-            </div>
-            <span className="text-xs bg-blue-50 text-[#0046ff] border border-blue-200 px-3 py-1 rounded font-medium">
-              管理者: {user?.email}
-            </span>
-          </div>
-
-          {/* セクション 1: 東栄県警察 採用合否データ管理 */}
-          <div className="mb-10">
-            <h2 className="text-base font-bold text-slate-900 mb-3 pb-2 border-b border-slate-100">
-              東栄県警察 第一期採用試験 合否データ管理
-            </h2>
-
-            {/* 登録・編集フォーム */}
-            <form onSubmit={handleSaveExamResult} className={`border rounded p-4 mb-6 transition-colors ${editingId ? 'bg-amber-50/50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-slate-800">
-                  {editingId ? '合否データの編集中（ID: ' + editingId.slice(0, 8) + '...）' : '新規合否データ追加'}
-                </h3>
-                {editingId && (
-                  <button
-                    type="button"
-                    onClick={resetExamForm}
-                    className="text-[11px] text-slate-500 hover:text-slate-800 underline"
-                  >
-                    編集をキャンセル
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 mb-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">受考番号</label>
-                  <input
-                    type="text"
-                    value={examNumber}
-                    onChange={(e) => setExamNumber(e.target.value)}
-                    required
-                    placeholder="TP-2026-001"
-                    className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">氏名</label>
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    placeholder="東栄 太郎"
-                    className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">生年月日</label>
-                  <input
-                    type="date"
-                    value={birthDate}
-                    onChange={(e) => setBirthDate(e.target.value)}
-                    required
-                    className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">合否判定</label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as 'pass' | 'fail')}
-                    className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded text-xs"
-                  >
-                    <option value="pass">合格 (Pass)</option>
-                    <option value="fail">不合格 (Fail)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">配属部署</label>
-                  <input
-                    type="text"
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    required
-                    className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  type="submit"
-                  className={`px-4 py-1.5 text-white text-xs font-medium rounded transition-colors ${editingId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-700 hover:bg-emerald-800'}`}
-                >
-                  {editingId ? '変更を保存する' : '登録する'}
-                </button>
-                {editingId && (
-                  <button
-                    type="button"
-                    onClick={resetExamForm}
-                    className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium rounded transition-colors"
-                  >
-                    キャンセル
-                  </button>
-                )}
-              </div>
-            </form>
-
-            {/* 登録済み一覧テーブル */}
-            <div className="overflow-x-auto border border-slate-200 rounded">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-slate-700">
-                    <th className="p-3">受考番号</th>
-                    <th className="p-3">氏名</th>
-                    <th className="p-3">生年月日</th>
-                    <th className="p-3">合否</th>
-                    <th className="p-3">配属予定</th>
-                    <th className="p-3 text-right">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {examResults.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-4 text-center text-slate-400">データが登録されていません。</td>
-                    </tr>
-                  ) : (
-                    examResults.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50">
-                        <td className="p-3 font-semibold">{item.exam_number}</td>
-                        <td className="p-3">{item.full_name}</td>
-                        <td className="p-3">{item.birth_date}</td>
-                        <td className="p-3">
-                          {item.status === 'pass' ? (
-                            <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">合格</span>
-                          ) : (
-                            <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-bold">不合格</span>
-                          )}
-                        </td>
-                        <td className="p-3 text-slate-600">{item.department}</td>
-                        <td className="p-3 text-right space-x-1">
-                          <button
-                            onClick={() => handleEditClick(item)}
-                            className="bg-blue-50 hover:bg-blue-100 text-[#0046ff] px-2 py-1 rounded text-[11px] border border-blue-200 transition-colors"
-                          >
-                            編集
-                          </button>
-                          <button
-                            onClick={() => handleDeleteExamResult(item.id)}
-                            className="bg-red-50 hover:bg-red-100 text-red-600 px-2 py-1 rounded text-[11px] border border-red-200 transition-colors"
-                          >
-                            削除
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* セクション 2: 登録ユーザー一覧と権限管理 */}
-          <div>
-            <h2 className="text-base font-bold text-slate-900 mb-3 pb-2 border-b border-slate-100">
-              登録ユーザー一覧と権限管理
-            </h2>
-            <div className="overflow-x-auto border border-slate-200 rounded">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-slate-700">
-                    <th className="p-3">メールアドレス</th>
-                    <th className="p-3">氏名</th>
-                    <th className="p-3">生年月日</th>
-                    <th className="p-3">性別</th>
-                    <th className="p-3">権限 (Role)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {profilesList.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50">
-                      <td className="p-3 font-medium text-slate-900">{p.email}</td>
-                      <td className="p-3">{p.full_name || '-'}</td>
-                      <td className="p-3">{p.birth_date || '-'}</td>
-                      <td className="p-3">{p.gender || '-'}</td>
-                      <td className="p-3">
-                        <select
-                          value={p.role || 'customer'}
-                          onChange={(e) => handleUpdateRole(p.id, e.target.value)}
-                          className="bg-white border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-[#0046ff]"
-                        >
-                          <option value="customer">一般ユーザー</option>
-                          <option value="admin">管理者</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
+      <main className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 py-8 w-full space-y-8">
+        <div className="border-b border-slate-300 pb-4">
+          <h1 className="text-xl font-bold text-slate-900 border-l-4 border-slate-800 pl-3">
+            東栄ポータル 統合管理パネル
+          </h1>
+          <p className="text-xs text-slate-600 mt-1">
+            トップページに表示される各種情報およびコンテンツのリアルタイム編集を行います。
+          </p>
         </div>
+
+        {loading ? (
+          <div className="bg-white border border-slate-300 rounded p-8 text-center text-xs text-slate-500">
+            データを読み込み中...
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {/* 1. 防災・緊急情報 設定セクション */}
+            <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
+              <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4 flex items-center justify-between">
+                <span>[ 1 ] 防災・緊急情報バー設定</span>
+                <span className="text-xs font-normal text-slate-500">トップページ最上部</span>
+              </h2>
+
+              <form onSubmit={handleSaveSettings} className="space-y-4">
+                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-3 rounded">
+                  <input
+                    type="checkbox"
+                    id="emergency_active"
+                    checked={isEmergencyActive}
+                    onChange={(e) => setIsEmergencyActive(e.target.checked)}
+                    className="w-4 h-4 text-red-600 border-slate-300 rounded focus:ring-red-500"
+                  />
+                  <label htmlFor="emergency_active" className="text-xs font-bold text-slate-800 cursor-pointer">
+                    緊急情報バーを有効化してトップページに表示する
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">表示メッセージ</label>
+                  <input
+                    type="text"
+                    value={emergencyText}
+                    onChange={(e) => setEmergencyText(e.target.value)}
+                    placeholder="例: 現在、東栄県内における重大な警報・緊急情報はありません。"
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-slate-500"
+                  />
+                </div>
+
+                <div className="text-right">
+                  <button
+                    type="submit"
+                    disabled={isSavingSettings}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded transition-colors disabled:opacity-50"
+                  >
+                    {isSavingSettings ? '保存中...' : '緊急情報の設定を保存'}
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            {/* 2. 新着情報 管理セクション */}
+            <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
+              <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
+                [ 2 ] 新着情報・更新情報の投稿・管理
+              </h2>
+
+              {/* 追加フォーム */}
+              <form onSubmit={handleAddNews} className="bg-slate-50 border border-slate-200 rounded p-4 mb-6 space-y-3">
+                <h3 className="text-xs font-bold text-slate-800">新規お知らせの投稿</h3>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">日付表記</label>
+                    <input
+                      type="text"
+                      value={newDate}
+                      onChange={(e) => setNewDate(e.target.value)}
+                      placeholder="例: 11月5日"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-slate-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">カテゴリ</label>
+                    <select
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-slate-500"
+                    >
+                      <option value="お知らせ">お知らせ</option>
+                      <option value="採用情報">採用情報</option>
+                      <option value="住民サービス">住民サービス</option>
+                      <option value="行政運営">行政運営</option>
+                      <option value="緊急通知">緊急通知</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">リンク先URL (任意)</label>
+                    <input
+                      type="text"
+                      value={newLink}
+                      onChange={(e) => setNewLink(e.target.value)}
+                      placeholder="/toeiken/police-result など"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-slate-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">タイトル</label>
+                  <input
+                    type="text"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    placeholder="お知らせの件名を入力してください"
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-slate-500"
+                  />
+                </div>
+
+                <div className="text-right pt-1">
+                  <button
+                    type="submit"
+                    disabled={isAddingNews}
+                    className="px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white text-xs font-bold rounded transition-colors disabled:opacity-50"
+                  >
+                    {isAddingNews ? '投稿中...' : '新着情報を追加'}
+                  </button>
+                </div>
+              </form>
+
+              {/* 登録済み一覧 */}
+              <div>
+                <h3 className="text-xs font-bold text-slate-800 mb-3">投稿済み一覧（{newsList.length}件）</h3>
+                
+                {newsList.length === 0 ? (
+                  <p className="text-xs text-slate-500 py-4 text-center border border-dashed border-slate-200 rounded">
+                    投稿された新着情報はありません。
+                  </p>
+                ) : (
+                  <div className="border border-slate-200 rounded divide-y divide-slate-100 text-xs">
+                    {newsList.map((item) => (
+                      <div key={item.id} className="p-3 flex items-center justify-between gap-4 hover:bg-slate-50">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-mono text-slate-500">{item.date_str}</span>
+                            <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px]">
+                              {item.category}
+                            </span>
+                          </div>
+                          <p className="font-medium text-slate-900 truncate">{item.title}</p>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteNews(item.id)}
+                          className="px-2.5 py-1 text-red-600 border border-red-200 hover:bg-red-50 rounded text-[11px] font-semibold shrink-0"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
       </main>
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
