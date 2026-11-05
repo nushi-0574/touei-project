@@ -9,10 +9,12 @@ interface PageProps {
   };
 }
 
-// ビルド時に事前生成するスラッグを定義（必要に応じて空でも可）
+// Cache Componentsの要件（最低1つのパラメータを返す）を満たすようダミーをフォールバックに含める
 export async function generateStaticParams() {
   const { data } = await supabase.from('custom_pages').select('slug');
-  if (!data) return [];
+  if (!data || data.length === 0) {
+    return [{ slug: 'dummy' }];
+  }
   return data.map((item) => ({
     slug: item.slug,
   }));
@@ -20,6 +22,10 @@ export async function generateStaticParams() {
 
 export default async function DynamicCustomPage({ params }: PageProps) {
   const { slug } = params;
+
+  if (slug === 'dummy') {
+    notFound();
+  }
 
   // Supabaseから該当スラッグのページを取得
   const { data: pageData } = await supabase
