@@ -1,139 +1,106 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { supabase } from '../../../lib/supabase';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import Header from '../../components/Header';
 import Breadcrumbs from '../../components/Breadcrumbs';
+import Toast from '../../components/Toast';
+import { supabase } from '../../../lib/supabase';
 
-export default function ToeikenDashboardPage() {
+export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   useEffect(() => {
-    async function getUserData() {
+    async function loadUser() {
       const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        router.push('/toeiken');
-        return;
+      if (session?.user) {
+        setUser(session.user);
       }
-
-      setUser(session.user);
       setLoading(false);
     }
+    loadUser();
+  }, []);
 
-    getUserData();
-  }, [router]);
+  const handleLinkDiscord = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'discord',
+      options: {
+        redirectTo: `${window.location.origin}/toeiken/dashboard`,
+      },
+    });
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center">
-        <div className="w-6 h-6 border-2 border-slate-300 border-t-emerald-600 rounded-full animate-spin mb-3"></div>
-        <p className="text-slate-500 text-xs">読み込み中...</p>
-      </div>
-    );
-  }
+    if (error) {
+      setToast({ message: 'Discord連携エラー: ' + error.message, type: 'error' });
+    }
+  };
+
+  const isDiscordLinked = user?.app_metadata?.providers?.includes('discord') || user?.app_metadata?.provider === 'discord';
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800">
+    <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans">
       <Header />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        <Breadcrumbs items={[{ label: '東栄県ポータル' }]} />
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
+        <Breadcrumbs items={[{ label: '東栄県住民マイページ' }]} />
 
-        {/* 緑基調のヘッダーパネル */}
-        <div className="bg-emerald-900 text-white border border-emerald-800 rounded p-6 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-[10px] bg-emerald-700 text-emerald-100 border border-emerald-600 px-2 py-0.5 rounded font-medium tracking-wide">
-                東栄県 行政ポータル
-              </span>
-              <h1 className="text-xl font-bold mt-2">東栄県ポータル メインメニュー</h1>
-              <p className="text-xs text-emerald-200 mt-1">
-                東栄県住民・関係者向けオンライン手続き・総合案内サービス
-              </p>
-            </div>
-            <div className="text-xs text-emerald-100 bg-emerald-800/80 border border-emerald-700 px-3 py-2 rounded">
-              <span>連携アカウント: </span>
-              <span className="font-semibold text-white">{user?.email || user?.user_metadata?.full_name || '認証済みユーザー'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* メインお知らせ: 東栄県警察 合否照会 */}
-        <div className="bg-white border-2 border-emerald-600 rounded p-6 mb-6">
-          <div className="flex items-center space-x-2 mb-2">
-            <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">
-              重要なお知らせ
-            </span>
-            <span className="text-xs text-slate-400">2026.10.15</span>
-          </div>
-          
-          <h2 className="text-lg font-bold text-slate-900 mb-2">
-            東栄県警察 第一期条件付き採用職員 合否照会ページ
-          </h2>
-          <p className="text-xs text-slate-600 leading-relaxed mb-4">
-            東栄県警察 第一期条件付き採用試験の合否結果の照会および受考番号の確認はこちらから行えます。対象者の方は案内に従って照会手続きを行ってください。
-          </p>
-          
-          <a
-            href="/toeiken/police-result"
-            className="inline-block bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-medium px-4 py-2 rounded transition-colors"
-          >
-            合否照会画面へ進む
-          </a>
-        </div>
-
-        {/* その他コンテンツエリア */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white border border-slate-200 rounded p-5 hover:border-emerald-600 transition-colors flex flex-col justify-between">
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm mb-2">県政ニュース・広報</h3>
-              <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                東栄県内の最新ニュース、行政広報、イベント情報をご案内します。
-              </p>
-            </div>
-            <button
-              onClick={() => alert('準備中')}
-              className="w-full text-center bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium py-2 rounded border border-slate-300 transition-colors"
-            >
-              閲覧する
-            </button>
+        <div className="bg-white border border-slate-300 rounded shadow-sm p-6 space-y-6">
+          <div className="border-b border-slate-200 pb-3">
+            <h1 className="text-xl font-bold text-slate-900">東栄県民マイページ</h1>
+            <p className="text-xs text-slate-500 mt-1">ご登録アカウントの情報確認および連携設定を行います。</p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded p-5 hover:border-emerald-600 transition-colors flex flex-col justify-between">
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm mb-2">オンライン各種申請</h3>
-              <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                各種届出、許可申請手続等のオンライン受付窓口です。
-              </p>
+          {loading ? (
+            <p className="text-xs text-slate-500 text-center py-4">読み込み中...</p>
+          ) : !user ? (
+            <div className="text-center py-6">
+              <p className="text-xs text-red-600 mb-3">ログインが必要です。</p>
+              <a href="/toeiken" className="text-xs bg-slate-900 text-white px-4 py-2 rounded">ログイン画面へ</a>
             </div>
-            <button
-              onClick={() => alert('準備中')}
-              className="w-full text-center bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium py-2 rounded border border-slate-300 transition-colors"
-            >
-              申請一覧へ
-            </button>
-          </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="bg-slate-50 p-4 border border-slate-200 rounded text-xs space-y-2">
+                <p><span className="font-bold text-slate-700">登録メールアドレス:</span> {user.email}</p>
+                <p><span className="font-bold text-slate-700">ユーザーID:</span> {user.id}</p>
+              </div>
 
-          <div className="bg-white border border-slate-200 rounded p-5 hover:border-emerald-600 transition-colors flex flex-col justify-between">
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm mb-2">東栄ポータル（通常）へ</h3>
-              <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                統合管理システムのメイン機能・資料ライブラリへ戻ります。
-              </p>
+              {/* 連携アカウント設定 */}
+              <div className="border border-slate-200 rounded p-5 space-y-4">
+                <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
+                  外部サービス連携設定
+                </h2>
+
+                <div className="flex items-center justify-between bg-slate-50 p-3 rounded border border-slate-200">
+                  <div className="flex items-center gap-3">
+                    <svg className="w-5 h-5 fill-current text-[#5865F2]" viewBox="0 0 127.14 96.36">
+                      <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1,105.25,105.25,0,0,0,32.19-16.14c2.64-27.38-4.51-51.11-18.91-72.15ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74c6.51,0,11.62,5.78,11.44,12.74C53.89,60,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74c6.5,0,11.62,5.78,11.44,12.74C96.13,60,91.2,65.69,84.69,65.69Z" />
+                    </svg>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">Discord アカウント</p>
+                      <p className="text-[11px] text-slate-500">
+                        {isDiscordLinked ? '連携済み' : '未連携（公式Discordサーバーとの権限確認に使用します）'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {isDiscordLinked ? (
+                    <span className="text-[11px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-1 rounded font-semibold">
+                      連携完了
+                    </span>
+                  ) : (
+                    <button
+                      onClick={handleLinkDiscord}
+                      className="px-3 py-1.5 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-semibold rounded shadow transition-colors"
+                    >
+                      Discordアカウントを紐づける
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-            <a
-              href="/dashboard"
-              className="block w-full text-center bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-medium py-2 rounded border border-slate-300 transition-colors"
-            >
-              メインポータルへ移動
-            </a>
-          </div>
+          )}
         </div>
       </main>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
