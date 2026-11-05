@@ -61,7 +61,6 @@ export default function AdminPage() {
       }
       setIsAuthenticated(true);
 
-      // 各テーブルから安全にデータを取得（エラーが発生しても全体がクラッシュしないように個別catch）
       const [newsRes, examRes, pagesRes, cardsRes] = await Promise.all([
         supabase.from('news_items').select('*').order('id', { ascending: false }),
         supabase.from('police_exam_results').select('*').order('id', { ascending: false }),
@@ -479,3 +478,4 @@ export default function AdminPage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
+}
