@@ -18,20 +18,44 @@ export default function DashboardPage() {
       if (session?.user) {
         setUser(session.user);
 
-        // プロファイルおよびDiscord紐づき情報の取得
+        // 1. プロファイルの取得
         const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .single();
 
+        // 2. セッションからDiscordのIdentity（外部ID）を確認
+        const discordIdentity = session.user.identities?.find((id: any) => id.provider === 'discord');
+        const discordId = discordIdentity ? discordIdentity.id : null;
+
         if (profileData) {
           setProfile(profileData);
-        } else {
-          // プロファイル未作成の場合は初期作成
-          const discordIdentity = session.user.identities?.find((id: any) => id.provider === 'discord');
-          const discordId = discordIdentity?.id || null;
 
+          // Discord認証から戻ってきた際、プロファイル側に未保存であれば自動同期
+          if (discordId && !profileData.discord_id) {
+            // 重複チェック
+            const { data: existing } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('discord_id', discordId)
+              .neq('id', session.user.id);
+
+            if (existing && existing.length > 0) {
+              setToast({ message: 'このDiscordアカウントは既に別の東栄県アカウントに紐づけられています。', type: 'error' });
+            } else {
+              const { data: updated } = await supabase
+                .from('profiles')
+                .update({ discord_id: discordId })
+                .eq('id', session.user.id)
+                .select()
+                .single();
+              
+              if (updated) setProfile(updated);
+            }
+          }
+        } else {
+          // プロファイルがなければ新規作成
           const { data: newProfile } = await supabase
             .from('profiles')
             .insert([{ id: session.user.id, email: session.user.email, discord_id: discordId }])
@@ -47,56 +71,19 @@ export default function DashboardPage() {
   }, []);
 
   const handleLinkDiscord = async () => {
-    // 1. ユーザーのセッションからDiscord IDを取得して重複チェック
-    const discordIdentity = user?.identities?.find((id: any) => id.provider === 'discord');
-    
-    // まだSupabaseのauth側でDiscord連携されていない場合
-    if (!discordIdentity) {
-      const { error } = await supabase.auth.linkIdentity({
-        provider: 'discord',
-        options: {
-          redirectTo: `${window.location.origin}/toeiken/dashboard`,
-        },
-      });
-      if (error) {
-        setToast({ message: 'Discord連携エラー: ' + error.message, type: 'error' });
-      }
-      return;
-    }
+    const { error } = await supabase.auth.linkIdentity({
+      provider: 'discord',
+      options: {
+        redirectTo: `${window.location.origin}/toeiken/dashboard`,
+      },
+    });
 
-    const discordId = discordIdentity.id;
-
-    // 2. 既に他のアカウントにこのDiscord IDが紐づいていないかチェック
-    const { data: existingProfiles, error: checkError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('discord_id', discordId)
-      .neq('id', user.id);
-
-    if (existingProfiles && existingProfiles.length > 0) {
-      setToast({ message: 'このDiscordアカウントは既に別の東栄県アカウントに紐づけられています。', type: 'error' });
-      return;
-    }
-
-    // 3. 紐づき保存
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ discord_id: discordId })
-      .eq('id', user.id);
-
-    if (updateError) {
-      if (updateError.code === '23505') { // PostgreSQL unique violation code
-        setToast({ message: 'このDiscordアカウントは既に別のユーザーに使用されています。', type: 'error' });
-      } else {
-        setToast({ message: '紐づけに失敗しました: ' + updateError.message, type: 'error' });
-      }
-    } else {
-      setToast({ message: 'Discordアカウントを正常に紐づけました。', type: 'success' });
-      setProfile({ ...profile, discord_id: discordId });
+    if (error) {
+      setToast({ message: 'Discord連携エラー: ' + error.message, type: 'error' });
     }
   };
 
-  // セッションまたはプロファイルからDiscord連携有無を判定
+  // 判定：セッションのidentitiesかプロファイルのdiscord_idがあれば連携済みとする
   const hasDiscordIdentity = user?.identities?.some((id: any) => id.provider === 'discord') || profile?.discord_id;
 
   return (
