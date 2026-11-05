@@ -130,4 +130,64 @@ export default function PoliceResultPage() {
                 <select
                   value={birthDay}
                   onChange={(e) => setBirthDay(e.target.value)}
-                  className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring
+                  className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {days.map((d) => (
+                    <option key={d} value={d}>{d}日</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-6 py-2.5 bg-blue-700 hover:bg-blue-600 text-white text-xs font-bold rounded transition-colors shadow disabled:opacity-50"
+              >
+                {loading ? '照会中...' : '結果を確認する'}
+              </button>
+            </div>
+          </form>
+
+          {searched && (
+            <div className="mt-8 border-t border-slate-200 pt-6">
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">照会結果</h2>
+              
+              {resultData ? (
+                <div className="bg-slate-50 border border-slate-300 rounded p-6 space-y-3">
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <span className="text-slate-500 block mb-0.5">受考番号</span>
+                      <span className="font-mono font-bold text-slate-800">{resultData.exam_number}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block mb-0.5">氏名</span>
+                      <span className="font-bold text-slate-800">{resultData.name}</span>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-200 pt-3">
+                    <span className="text-slate-500 block mb-1 text-xs">選考結果</span>
+                    <div className="inline-block px-4 py-1.5 rounded bg-blue-900 text-white font-bold text-sm tracking-widest">
+                      {resultData.result}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 rounded p-4 text-xs text-amber-900">
+                  <p className="font-bold mb-1">該当するデータが見つかりませんでした。</p>
+                  <p className="text-[11px] text-amber-800">
+                    受考番号、または生年月日に誤りがないかご確認ください。
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </div>
+  );
+}
