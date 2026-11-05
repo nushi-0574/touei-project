@@ -53,27 +53,22 @@ export default function AdminPage() {
   const checkUserAndFetchData = async () => {
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
         setIsAuthenticated(false);
         setLoading(false);
         return;
       }
       setIsAuthenticated(true);
 
-      // 全設定・データの並行取得
-      const [settingRes, newsRes, examRes, pagesRes, cardsRes] = await Promise.all([
-        supabase.from('site_settings').select('*').eq('id', 1).maybeSingle(),
+      // 各テーブルから安全にデータを取得（エラーが発生しても全体がクラッシュしないように個別catch）
+      const [newsRes, examRes, pagesRes, cardsRes] = await Promise.all([
         supabase.from('news_items').select('*').order('id', { ascending: false }),
         supabase.from('police_exam_results').select('*').order('id', { ascending: false }),
         supabase.from('custom_pages').select('*').order('created_at', { ascending: false }),
         supabase.from('main_menu_cards').select('*').order('display_order', { ascending: true }),
       ]);
 
-      if (settingRes.data) {
-        setEmergencyText(settingRes.data.emergency_text || '');
-        setIsEmergencyActive(settingRes.data.is_emergency_active || false);
-      }
       if (newsRes.data) setNewsList(newsRes.data);
       if (examRes.data) setExamResultsList(examRes.data);
       if (pagesRes.data) setCustomPages(pagesRes.data);
@@ -81,6 +76,7 @@ export default function AdminPage() {
 
     } catch (err) {
       console.error('データ取得エラー:', err);
+      setToast({ message: 'データの取得中にエラーが発生しました。', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -347,7 +343,7 @@ export default function AdminPage() {
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="font-mono bg-slate-200 px-2 py-0.5 rounded text-[10px]">{item.exam_number}</span>
                           <span className="font-bold text-slate-800">{item.name}</span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${item.result.includes('合格') ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-red-100 text-red-800 border border-red-300'}`}>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${item.result?.includes('合格') ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-red-100 text-red-800 border border-red-300'}`}>
                             {item.result}
                           </span>
                         </div>
@@ -363,7 +359,7 @@ export default function AdminPage() {
               </div>
             </section>
 
-            {/* 2. メインメニュー（カード・ページ遷移・表示順）管理 */}
+            {/* 2. メインメニューカード管理 */}
             <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
                 [ メインメニューカード・並び替え管理 ]
@@ -421,7 +417,7 @@ export default function AdminPage() {
               </div>
             </section>
 
-            {/* 3. カスタムページ作成・編集機能 */}
+            {/* 3. カスタムページ管理 */}
             <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
                 [ 新規ページの作成・編集・削除 ]
@@ -483,4 +479,3 @@ export default function AdminPage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
-}
