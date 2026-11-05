@@ -7,7 +7,18 @@ import { supabase } from '../../lib/supabase';
 
 type NewsItem = { id: number; date_str: string; title: string; link_url: string; category: string; };
 type ExamResultItem = { id: number; exam_number: string; name: string; birth_date: string; result: string; exam_name: string; };
-type CustomPageItem = { id: string; slug: string; title: string; content: string; is_published: boolean; };
+type CustomPageItem = {
+  id: string;
+  slug: string;
+  title: string;
+  content: string;
+  description?: string;
+  keywords?: string;
+  category?: string;
+  is_published: boolean;
+  display_order?: number;
+  created_at?: string;
+};
 type MenuCardItem = { id: string; title: string; description: string; link_url: string; display_order: number; is_visible: boolean; };
 type UserProfileItem = { id: string; email: string; full_name: string; is_admin: boolean; created_at: string; };
 
@@ -35,12 +46,18 @@ export default function AdminPage() {
   const [examResult, setExamResult] = useState('合格');
   const [editingExamId, setEditingExamId] = useState<number | null>(null);
 
-  // 4. カスタムページ管理ステート
+  // 4. カスタムページ高度管理ステート
   const [customPages, setCustomPages] = useState<CustomPageItem[]>([]);
   const [pageSlug, setPageSlug] = useState('');
   const [pageTitle, setPageTitle] = useState('');
+  const [pageCategory, setPageCategory] = useState('一般案内');
+  const [pageDescription, setPageDescription] = useState('');
+  const [pageKeywords, setPageKeywords] = useState('');
   const [pageContent, setPageContent] = useState('');
+  const [pageIsPublished, setPageIsPublished] = useState(true);
+  const [pageDisplayOrder, setPageDisplayOrder] = useState('0');
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  const [previewMode, setPreviewMode] = useState(false);
 
   // 5. メインメニューカード管理ステート
   const [menuCards, setMenuCards] = useState<MenuCardItem[]>([]);
@@ -67,7 +84,6 @@ export default function AdminPage() {
         return;
       }
 
-      // 管理者チェック
       const { data: profile } = await supabase
         .from('profiles')
         .select('is_admin')
@@ -86,7 +102,7 @@ export default function AdminPage() {
         supabase.from('site_settings').select('*').eq('id', 1).maybeSingle(),
         supabase.from('news_items').select('*').order('id', { ascending: false }),
         supabase.from('police_exam_results').select('*').order('id', { ascending: false }),
-        supabase.from('custom_pages').select('*').order('created_at', { ascending: false }),
+        supabase.from('custom_pages').select('*').order('display_order', { ascending: true }),
         supabase.from('main_menu_cards').select('*').order('display_order', { ascending: true }),
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       ]);
@@ -226,7 +242,20 @@ export default function AdminPage() {
     }
   };
 
-  // --- カスタムページ ---
+  // --- 高度カスタムページ保存・編集 ---
+  const resetCustomPageForm = () => {
+    setPageSlug('');
+    setPageTitle('');
+    setPageCategory('一般案内');
+    setPageDescription('');
+    setPageKeywords('');
+    setPageContent('');
+    setPageIsPublished(true);
+    setPageDisplayOrder('0');
+    setEditingPageId(null);
+    setPreviewMode(false);
+  };
+
   const handleSaveCustomPage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pageSlug.trim() || !pageTitle.trim()) {
@@ -235,29 +264,51 @@ export default function AdminPage() {
     }
 
     try {
+      const payload = {
+        slug: pageSlug.trim().toLowerCase(),
+        title: pageTitle.trim(),
+        category: pageCategory.trim(),
+        description: pageDescription.trim(),
+        keywords: pageKeywords.trim(),
+        content: pageContent,
+        is_published: pageIsPublished,
+        display_order: parseInt(pageDisplayOrder, 10) || 0,
+        updated_at: new Date().toISOString(),
+      };
+
       if (editingPageId) {
         const { error } = await supabase
           .from('custom_pages')
-          .update({ slug: pageSlug.trim(), title: pageTitle.trim(), content: pageContent, updated_at: new Date().toISOString() })
+          .update(payload)
           .eq('id', editingPageId);
         if (error) throw error;
         setToast({ message: 'ページを更新しました。', type: 'success' });
       } else {
         const { error } = await supabase
           .from('custom_pages')
-          .insert([{ slug: pageSlug.trim(), title: pageTitle.trim(), content: pageContent }]);
+          .insert([payload]);
         if (error) throw error;
-        setToast({ message: '新しいページを作成しました。', type: 'success' });
+        setToast({ message: '新しい拡張ページを作成しました。', type: 'success' });
       }
 
-      setPageSlug('');
-      setPageTitle('');
-      setPageContent('');
-      setEditingPageId(null);
+      resetCustomPageForm();
       checkUserAndFetchData();
     } catch (err: any) {
       setToast({ message: 'ページの保存に失敗しました: ' + err.message, type: 'error' });
     }
+  };
+
+  const handleEditPageClick = (page: CustomPageItem) => {
+    setEditingPageId(page.id);
+    setPageSlug(page.slug);
+    setPageTitle(page.title);
+    setPageCategory(page.category || '一般案内');
+    setPageDescription(page.description || '');
+    setPageKeywords(page.keywords || '');
+    setPageContent(page.content || '');
+    setPageIsPublished(page.is_published ?? true);
+    setPageDisplayOrder(String(page.display_order || 0));
+    setPreviewMode(false);
   };
 
   const handleDeletePage = async (id: string) => {
@@ -348,7 +399,7 @@ export default function AdminPage() {
               東栄ポータル 統合管理パネル
             </h1>
             <p className="text-xs text-slate-600 mt-1">
-              緊急情報、新着お知らせ、合否照会データ、カスタムページ、メニューカード、ユーザー権限を一元管理します。
+              緊急情報、新着お知らせ、合否照会データ、高機能動的ページ、メニューカード、ユーザー権限を一元管理します。
             </p>
           </div>
           <span className={`px-3 py-1 rounded text-xs font-semibold ${isAuthenticated ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'}`}>
@@ -376,8 +427,8 @@ export default function AdminPage() {
                 <p className="text-2xl font-bold text-slate-800 mt-1">{examResultsList.length}<span className="text-xs font-normal text-slate-500 ml-1">名</span></p>
               </div>
               <div className="bg-white p-4 rounded border border-slate-300 shadow-sm">
-                <p className="text-[11px] text-slate-500 font-bold">カスタムページ</p>
-                <p className="text-2xl font-bold text-slate-800 mt-1">{customPages.length}<span className="text-xs font-normal text-slate-500 ml-1">件</span></p>
+                <p className="text-[11px] text-slate-500 font-bold">動的公開ページ</p>
+                <p className="text-2xl font-bold text-slate-800 mt-1">{customPages.filter(p => p.is_published).length}<span className="text-xs font-normal text-slate-500 ml-1">件</span></p>
               </div>
               <div className="bg-white p-4 rounded border border-slate-300 shadow-sm">
                 <p className="text-[11px] text-slate-500 font-bold">メニューカード</p>
@@ -389,7 +440,128 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 1. 緊急情報アラート設定 */}
+            {/* 1. 高機能カスタムページ作成・管理（拡張仕様） */}
+            <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <h2 className="text-sm font-bold text-slate-900">
+                  [ 高機能Webページ・コンテンツ構築エディタ ]
+                </h2>
+                <span className="text-[11px] text-slate-500">/pages/[slug] で即時配信</span>
+              </div>
+
+              <form onSubmit={handleSaveCustomPage} className="bg-slate-50 border border-slate-200 rounded p-4 mb-6 space-y-4 text-xs">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-slate-800">
+                    {editingPageId ? 'ページの高度編集' : '新規拡張ページの作成'}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMode(!previewMode)}
+                    className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded text-[11px]"
+                  >
+                    {previewMode ? 'フォーム編集に戻る' : 'プレビュー切り替え'}
+                  </button>
+                </div>
+
+                {!previewMode ? (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block font-semibold mb-1">URLスラッグ (英数字小文字)</label>
+                        <div className="flex items-center gap-1">
+                          <span className="text-slate-500 font-mono text-[11px]">/pages/</span>
+                          <input type="text" value={pageSlug} onChange={(e) => setPageSlug(e.target.value)} placeholder="about や police-guide など" className="w-full px-3 py-1.5 border border-slate-300 rounded font-mono" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">ページタイトル</label>
+                        <input type="text" value={pageTitle} onChange={(e) => setPageTitle(e.target.value)} placeholder="例: 東栄県警 組織概要" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">カテゴリー分類</label>
+                        <input type="text" value={pageCategory} onChange={(e) => setPageCategory(e.target.value)} placeholder="例: 行政案内, 警察関係" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block font-semibold mb-1">概要・SEO説明文 (Description)</label>
+                        <input type="text" value={pageDescription} onChange={(e) => setPageDescription(e.target.value)} placeholder="検索結果に表示される簡単な説明文" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">検索用キーワード (Comma区切り)</label>
+                        <input type="text" value={pageKeywords} onChange={(e) => setPageKeywords(e.target.value)} placeholder="東栄県, 警察, 採用" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block font-semibold mb-1">表示順序</label>
+                          <input type="number" value={pageDisplayOrder} onChange={(e) => setPageDisplayOrder(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                        </div>
+                        <div className="flex items-center pt-5">
+                          <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-700">
+                            <input type="checkbox" checked={pageIsPublished} onChange={(e) => setPageIsPublished(e.target.checked)} className="rounded border-slate-300 text-blue-600" />
+                            一般公開する
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold mb-1">ページ本文（テキスト・改行対応）</label>
+                      <textarea rows={8} value={pageContent} onChange={(e) => setPageContent(e.target.value)} placeholder="ページの文章を入力してください..." className="w-full px-3 py-2 border border-slate-300 rounded font-sans leading-relaxed" />
+                    </div>
+                  </>
+                ) : (
+                  <div className="bg-white border border-slate-300 p-6 rounded space-y-4">
+                    <div className="border-b border-slate-200 pb-2">
+                      <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded mr-2">{pageCategory}</span>
+                      <h1 className="text-xl font-bold text-slate-900 inline">{pageTitle || '（タイトル未入力）'}</h1>
+                    </div>
+                    <p className="text-xs text-slate-500 italic">{pageDescription || '（概要なし）'}</p>
+                    <div className="text-xs text-slate-800 whitespace-pre-wrap leading-relaxed border-t border-slate-100 pt-3">
+                      {pageContent || '（本文なし）'}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-1">
+                  {editingPageId && (
+                    <button type="button" onClick={resetCustomPageForm} className="px-3 py-1.5 border border-slate-300 bg-white rounded">
+                      キャンセル
+                    </button>
+                  )}
+                  <button type="submit" className="px-5 py-1.5 bg-blue-700 hover:bg-blue-600 text-white font-bold rounded shadow">
+                    {editingPageId ? '拡張ページを更新' : '新しい拡張ページを即時公開'}
+                  </button>
+                </div>
+              </form>
+
+              {/* 一覧表示 */}
+              <div className="border border-slate-200 rounded divide-y divide-slate-100 text-xs">
+                {customPages.map((page) => (
+                  <div key={page.id} className="p-3 flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded text-[10px]">/pages/{page.slug}</span>
+                        <span className="font-bold text-slate-800">{page.title}</span>
+                        <span className="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded text-[10px]">{page.category || '一般案内'}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${page.is_published ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {page.is_published ? '公開中' : '下書き/非公開'}
+                        </span>
+                      </div>
+                      {page.description && <p className="text-[11px] text-slate-500 line-clamp-1">{page.description}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <a href={`/pages/${page.slug}`} target="_blank" className="px-2.5 py-1 text-blue-600 border border-blue-200 hover:bg-blue-50 rounded text-[11px]">表示確認</a>
+                      <button onClick={() => handleEditPageClick(page)} className="px-2.5 py-1 text-slate-700 border border-slate-300 bg-white rounded text-[11px]">編集</button>
+                      <button onClick={() => handleDeletePage(page.id)} className="px-2.5 py-1 text-red-600 border border-red-200 hover:bg-red-50 rounded text-[11px]">削除</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* 2. 緊急情報アラート設定 */}
             <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
                 [ サイトトップ 緊急情報発令設定 ]
@@ -423,7 +595,7 @@ export default function AdminPage() {
               </form>
             </section>
 
-            {/* 2. 新着情報（お知らせ）管理 */}
+            {/* 3. 新着情報（お知らせ）管理 */}
             <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
                 [ 新着情報・お知らせ管理 ]
@@ -465,7 +637,7 @@ export default function AdminPage() {
               </div>
             </section>
 
-            {/* 3. 警察官採用試験 合否データ管理 */}
+            {/* 4. 警察官採用試験 合否データ管理 */}
             <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
                 [ 警察官採用試験 合否データの登録・変更 ]
@@ -537,7 +709,7 @@ export default function AdminPage() {
               </div>
             </section>
 
-            {/* 4. メインメニューカード管理 */}
+            {/* 5. メインメニューカード管理 */}
             <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
                 [ メインメニューカード・並び替え管理 ]
@@ -589,62 +761,6 @@ export default function AdminPage() {
                     <div className="flex items-center gap-2">
                       <button onClick={() => { setEditingCardId(card.id); setCardTitle(card.title); setCardDesc(card.description || ''); setCardLink(card.link_url); setCardOrder(String(card.display_order)); }} className="px-2.5 py-1 text-slate-700 border border-slate-300 bg-white rounded text-[11px]">編集</button>
                       <button onClick={() => handleDeleteCard(card.id)} className="px-2.5 py-1 text-red-600 border border-red-200 hover:bg-red-50 rounded text-[11px]">削除</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* 5. カスタムページ管理 */}
-            <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
-              <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
-                [ 新規ページの作成・編集・削除 ]
-              </h2>
-
-              <form onSubmit={handleSaveCustomPage} className="bg-slate-50 border border-slate-200 rounded p-4 mb-6 space-y-3 text-xs">
-                <h3 className="font-bold text-slate-800">
-                  {editingPageId ? 'ページの編集' : '新しいWebページの新規作成'}
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold mb-1">URLスラッグ (英数字)</label>
-                    <div className="flex items-center gap-1">
-                      <span className="text-slate-500 font-mono text-[11px]">/pages/</span>
-                      <input type="text" value={pageSlug} onChange={(e) => setPageSlug(e.target.value)} placeholder="about や guide など" className="w-full px-3 py-1.5 border border-slate-300 rounded font-mono" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1">ページタイトル</label>
-                    <input type="text" value={pageTitle} onChange={(e) => setPageTitle(e.target.value)} placeholder="例: 東栄県について" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">ページ本文（文章・説明）</label>
-                  <textarea rows={6} value={pageContent} onChange={(e) => setPageContent(e.target.value)} placeholder="ページのコンテンツ本文を入力してください" className="w-full px-3 py-2 border border-slate-300 rounded font-sans" />
-                </div>
-                <div className="flex justify-end gap-2 pt-1">
-                  {editingPageId && (
-                    <button type="button" onClick={() => { setEditingPageId(null); setPageSlug(''); setPageTitle(''); setPageContent(''); }} className="px-3 py-1.5 border border-slate-300 bg-white rounded">
-                      キャンセル
-                    </button>
-                  )}
-                  <button type="submit" className="px-4 py-1.5 bg-blue-700 hover:bg-blue-600 text-white font-bold rounded">
-                    {editingPageId ? '変更を更新' : '新しいページを公開作成'}
-                  </button>
-                </div>
-              </form>
-
-              <div className="border border-slate-200 rounded divide-y divide-slate-100 text-xs">
-                {customPages.map((page) => (
-                  <div key={page.id} className="p-3 flex items-center justify-between gap-4">
-                    <div>
-                      <span className="font-mono bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded text-[10px] mr-2">/pages/{page.slug}</span>
-                      <span className="font-bold text-slate-800">{page.title}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <a href={`/pages/${page.slug}`} target="_blank" className="px-2.5 py-1 text-blue-600 border border-blue-200 hover:bg-blue-50 rounded text-[11px]">表示確認</a>
-                      <button onClick={() => { setEditingPageId(page.id); setPageSlug(page.slug); setPageTitle(page.title); setPageContent(page.content || ''); }} className="px-2.5 py-1 text-slate-700 border border-slate-300 bg-white rounded text-[11px]">編集</button>
-                      <button onClick={() => handleDeletePage(page.id)} className="px-2.5 py-1 text-red-600 border border-red-200 hover:bg-red-50 rounded text-[11px]">削除</button>
                     </div>
                   </div>
                 ))}
