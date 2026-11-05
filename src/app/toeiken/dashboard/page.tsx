@@ -10,7 +10,13 @@ export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // 編集用フォームのステート
+  const [fullName, setFullName] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [address, setAddress] = useState('');
 
   useEffect(() => {
     async function loadUserData() {
@@ -25,50 +31,66 @@ export default function DashboardPage() {
           .eq('id', session.user.id)
           .single();
 
-        // 2. セッションからDiscordのIdentity（外部ID）を確認
         const discordIdentity = session.user.identities?.find((id: any) => id.provider === 'discord');
         const discordId = discordIdentity ? discordIdentity.id : null;
 
         if (profileData) {
           setProfile(profileData);
+          setFullName(profileData.full_name || '');
+          setBirthDate(profileData.birth_date || '');
+          setAddress(profileData.address || '');
 
-          // Discord認証から戻ってきた際、プロファイル側に未保存であれば自動同期
+          // Discord自動同期
           if (discordId && !profileData.discord_id) {
-            // 重複チェック
-            const { data: existing } = await supabase
+            await supabase
               .from('profiles')
-              .select('id')
-              .eq('discord_id', discordId)
-              .neq('id', session.user.id);
-
-            if (existing && existing.length > 0) {
-              setToast({ message: 'このDiscordアカウントは既に別の東栄県アカウントに紐づけられています。', type: 'error' });
-            } else {
-              const { data: updated } = await supabase
-                .from('profiles')
-                .update({ discord_id: discordId })
-                .eq('id', session.user.id)
-                .select()
-                .single();
-              
-              if (updated) setProfile(updated);
-            }
+              .update({ discord_id: discordId })
+              .eq('id', session.user.id);
           }
         } else {
-          // プロファイルがなければ新規作成
+          // プロファイル未作成の場合は新規作成
           const { data: newProfile } = await supabase
             .from('profiles')
             .insert([{ id: session.user.id, email: session.user.email, discord_id: discordId }])
             .select()
             .single();
 
-          if (newProfile) setProfile(newProfile);
+          if (newProfile) {
+            setProfile(newProfile);
+          }
         }
       }
       setLoading(false);
     }
     loadUserData();
   }, []);
+
+  // プロフィール情報の保存・修正
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          email: user.email,
+          full_name: fullName,
+          birth_date: birthDate || null,
+          address: address,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+      setToast({ message: '住民プロフィール情報を更新しました。', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: '保存に失敗しました: ' + err.message, type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleLinkDiscord = async () => {
     const { error } = await supabase.auth.linkIdentity({
@@ -83,19 +105,18 @@ export default function DashboardPage() {
     }
   };
 
-  // 判定：セッションのidentitiesかプロファイルのdiscord_idがあれば連携済みとする
   const hasDiscordIdentity = user?.identities?.some((id: any) => id.provider === 'discord') || profile?.discord_id;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans">
       <Header />
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full space-y-6">
         <Breadcrumbs items={[{ label: '東栄県住民マイページ' }]} />
 
-        <div className="bg-white border border-slate-300 rounded shadow-sm p-6 space-y-6">
+        <div className="bg-white border border-slate-300 rounded shadow-sm p-6 sm:p-8 space-y-6">
           <div className="border-b border-slate-200 pb-3">
             <h1 className="text-xl font-bold text-slate-900">東栄県民マイページ</h1>
-            <p className="text-xs text-slate-500 mt-1">ご登録アカウントの情報確認および連携設定を行います。</p>
+            <p className="text-xs text-slate-500 mt-1">ご登録アカウントの情報確認および住民情報の登録・修正を行います。</p>
           </div>
 
           {loading ? (
@@ -106,10 +127,62 @@ export default function DashboardPage() {
               <a href="/toeiken" className="text-xs bg-slate-900 text-white px-4 py-2 rounded">ログイン画面へ</a>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-8">
+              {/* アカウント基本情報 */}
               <div className="bg-slate-50 p-4 border border-slate-200 rounded text-xs space-y-2">
                 <p><span className="font-bold text-slate-700">登録メールアドレス:</span> {user.email}</p>
                 <p><span className="font-bold text-slate-700">ユーザーID:</span> {user.id}</p>
+              </div>
+
+              {/* 住民プロフィール情報の追加・修正フォーム */}
+              <div className="border border-slate-200 rounded p-5 space-y-4">
+                <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
+                  住民登録情報の追加・修正
+                </h2>
+
+                <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">氏名（または県民名）</label>
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="例: 東栄 太郎"
+                      className="w-full sm:w-1/2 px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">生年月日</label>
+                    <input
+                      type="date"
+                      value={birthDate}
+                      onChange={(e) => setBirthDate(e.target.value)}
+                      className="w-full sm:w-1/2 px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">居住地域・住所（県内等）</label>
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="例: 東栄市中央区1-1"
+                      className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded transition-colors shadow disabled:opacity-50"
+                    >
+                      {saving ? '保存中...' : '登録情報を保存する'}
+                    </button>
+                  </div>
+                </form>
               </div>
 
               {/* 外部サービス連携設定 */}
@@ -126,14 +199,14 @@ export default function DashboardPage() {
                     <div>
                       <p className="text-xs font-bold text-slate-800">Discord アカウント</p>
                       <p className="text-[11px] text-slate-500">
-                        {hasDiscordIdentity ? '連携済み（以降の追加認証は不要です）' : '未連携'}
+                        {hasDiscordIdentity ? '連携済み（追加認証は不要です）' : '未連携'}
                       </p>
                     </div>
                   </div>
 
                   {hasDiscordIdentity ? (
                     <span className="text-[11px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-1 rounded font-semibold">
-                      連携済み（読込のみ）
+                      連携済み
                     </span>
                   ) : (
                     <button
