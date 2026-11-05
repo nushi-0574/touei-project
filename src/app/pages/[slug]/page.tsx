@@ -3,15 +3,15 @@ import Header from '../../components/Header';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
-
-// 静的プレレンダリングではなく、アクセス時に動的にレンダリングするよう強制
-export const dynamic = 'force-dynamic';
+import { connection } from 'next/server';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
 async function PageContent({ slug }: { slug: string }) {
+  await connection();
+
   // Supabaseから該当スラッグのページを取得
   const { data: pageData } = await supabase
     .from('custom_pages')
