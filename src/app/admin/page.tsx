@@ -18,17 +18,18 @@ export default function AdminPage() {
   // 1. サイト緊急情報
   const [emergencyText, setEmergencyText] = useState('');
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // 2. 新着情報一覧
   const [newsList, setNewsList] = useState<NewsItem[]>([]);
-  const [newDate, setNewDate] = useState('');
-  const [newTitle, setNewTitle] = useState('');
-  const [newLink, setNewLink] = useState('');
-  const [newCategory, setNewCategory] = useState('お知らせ');
 
-  // 3. 警察官採用試験
+  // 3. 警察官採用試験 合否データ管理ステート
   const [examResultsList, setExamResultsList] = useState<ExamResultItem[]>([]);
+  const [examNumber, setExamNumber] = useState('');
+  const [examName, setExamName] = useState('令和8年度 東栄県警察官採用試験');
+  const [examFullName, setExamFullName] = useState('');
+  const [examBirthDate, setExamBirthDate] = useState('2000-04-01');
+  const [examResult, setExamResult] = useState('合格');
+  const [editingExamId, setEditingExamId] = useState<number | null>(null);
 
   // 4. カスタムページ管理ステート
   const [customPages, setCustomPages] = useState<CustomPageItem[]>([]);
@@ -82,6 +83,74 @@ export default function AdminPage() {
       console.error('データ取得エラー:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // --- 警察官採用試験 合否データの保存 / 更新 ---
+  const handleSaveExamResult = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!examNumber.trim() || !examFullName.trim()) {
+      setToast({ message: '受験番号と氏名を入力してください。', type: 'error' });
+      return;
+    }
+
+    try {
+      if (editingExamId !== null) {
+        const { error } = await supabase
+          .from('police_exam_results')
+          .update({
+            exam_number: examNumber.trim(),
+            exam_name: examName.trim(),
+            name: examFullName.trim(),
+            birth_date: examBirthDate,
+            result: examResult.trim(),
+          })
+          .eq('id', editingExamId);
+
+        if (error) throw error;
+        setToast({ message: '合否データを更新しました。', type: 'success' });
+      } else {
+        const { error } = await supabase
+          .from('police_exam_results')
+          .insert([{
+            exam_number: examNumber.trim(),
+            exam_name: examName.trim(),
+            name: examFullName.trim(),
+            birth_date: examBirthDate,
+            result: examResult.trim(),
+          }]);
+
+        if (error) throw error;
+        setToast({ message: '合否データを新しく登録しました。', type: 'success' });
+      }
+
+      setExamNumber('');
+      setExamFullName('');
+      setEditingExamId(null);
+      checkUserAndFetchData();
+    } catch (err: any) {
+      setToast({ message: '合否データの保存に失敗しました: ' + err.message, type: 'error' });
+    }
+  };
+
+  const handleEditExamClick = (item: ExamResultItem) => {
+    setEditingExamId(item.id);
+    setExamNumber(item.exam_number);
+    setExamName(item.exam_name || '令和8年度 東栄県警察官採用試験');
+    setExamFullName(item.name);
+    setExamBirthDate(item.birth_date || '2000-04-01');
+    setExamResult(item.result || '合格');
+  };
+
+  const handleDeleteExam = async (id: number) => {
+    if (!confirm('この合否データを削除しますか？')) return;
+    try {
+      const { error } = await supabase.from('police_exam_results').delete().eq('id', id);
+      if (error) throw error;
+      setExamResultsList(examResultsList.filter((item) => item.id !== id));
+      setToast({ message: '合否データを削除しました。', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: '削除に失敗しました: ' + err.message, type: 'error' });
     }
   };
 
@@ -197,7 +266,7 @@ export default function AdminPage() {
               東栄ポータル 統合管理パネル
             </h1>
             <p className="text-xs text-slate-600 mt-1">
-              緊急通知、新着情報、ページ追加・更新、メニューカードの並び替え・編集を行います。
+              警察官採用試験合否、ページ作成、メニューカードの並び替え・編集を行います。
             </p>
           </div>
           <span className={`px-3 py-1 rounded text-xs font-semibold ${isAuthenticated ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'}`}>
@@ -218,7 +287,83 @@ export default function AdminPage() {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* メインメニュー（カード・ページ遷移・表示順）管理 */}
+            {/* 1. 警察官採用試験 合否データ管理セクション */}
+            <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
+              <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
+                [ 警察官採用試験 合否データの登録・変更 ]
+              </h2>
+
+              <form onSubmit={handleSaveExamResult} className="bg-slate-50 border border-slate-200 rounded p-4 mb-6 space-y-3 text-xs">
+                <h3 className="font-bold text-slate-800">
+                  {editingExamId !== null ? '合否データの編集' : '新規受験者の合否登録'}
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold mb-1">試験名</label>
+                    <input type="text" value={examName} onChange={(e) => setExamName(e.target.value)} placeholder="例: 令和8年度 東栄県警察官採用試験" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1">受験番号</label>
+                    <input type="text" value={examNumber} onChange={(e) => setExamNumber(e.target.value)} placeholder="例: P-2026-001" className="w-full px-3 py-1.5 border border-slate-300 rounded font-mono" />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1">氏名</label>
+                    <input type="text" value={examFullName} onChange={(e) => setExamFullName(e.target.value)} placeholder="例: 東栄 太郎" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1">生年月日</label>
+                    <input type="date" value={examBirthDate} onChange={(e) => setExamBirthDate(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1">合否結果</label>
+                    <select value={examResult} onChange={(e) => setExamResult(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded bg-white">
+                      <option value="合格">合格</option>
+                      <option value="不合格">不合格</option>
+                      <option value="第一次合格">第一次合格</option>
+                      <option value="最終合格">最終合格</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  {editingExamId !== null && (
+                    <button type="button" onClick={() => { setEditingExamId(null); setExamNumber(''); setExamFullName(''); }} className="px-3 py-1.5 border border-slate-300 bg-white rounded">
+                      キャンセル
+                    </button>
+                  )}
+                  <button type="submit" className="px-4 py-1.5 bg-blue-700 hover:bg-blue-600 text-white font-bold rounded">
+                    {editingExamId !== null ? '変更を保存' : '合否データを登録'}
+                  </button>
+                </div>
+              </form>
+
+              <div className="border border-slate-200 rounded divide-y divide-slate-100 text-xs overflow-x-auto">
+                {examResultsList.length === 0 ? (
+                  <p className="p-4 text-center text-slate-500">登録されている合否データはありません。</p>
+                ) : (
+                  examResultsList.map((item) => (
+                    <div key={item.id} className="p-3 flex items-center justify-between gap-4 min-w-[500px]">
+                      <div>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="font-mono bg-slate-200 px-2 py-0.5 rounded text-[10px]">{item.exam_number}</span>
+                          <span className="font-bold text-slate-800">{item.name}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${item.result.includes('合格') ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-red-100 text-red-800 border border-red-300'}`}>
+                            {item.result}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">生年月日: {item.birth_date} / 試験名: {item.exam_name}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => handleEditExamClick(item)} className="px-2.5 py-1 text-slate-700 border border-slate-300 bg-white rounded text-[11px]">編集</button>
+                        <button onClick={() => handleDeleteExam(item.id)} className="px-2.5 py-1 text-red-600 border border-red-200 hover:bg-red-50 rounded text-[11px]">削除</button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+
+            {/* 2. メインメニュー（カード・ページ遷移・表示順）管理 */}
             <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
                 [ メインメニューカード・並び替え管理 ]
@@ -258,7 +403,6 @@ export default function AdminPage() {
                 </div>
               </form>
 
-              {/* カード一覧 */}
               <div className="border border-slate-200 rounded divide-y divide-slate-100 text-xs">
                 {menuCards.map((card) => (
                   <div key={card.id} className="p-3 flex items-center justify-between gap-4">
@@ -277,7 +421,7 @@ export default function AdminPage() {
               </div>
             </section>
 
-            {/* カスタムページ作成・編集機能 */}
+            {/* 3. カスタムページ作成・編集機能 */}
             <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
                 [ 新規ページの作成・編集・削除 ]
@@ -316,7 +460,6 @@ export default function AdminPage() {
                 </div>
               </form>
 
-              {/* 作成済みページ一覧 */}
               <div className="border border-slate-200 rounded divide-y divide-slate-100 text-xs">
                 {customPages.map((page) => (
                   <div key={page.id} className="p-3 flex items-center justify-between gap-4">
