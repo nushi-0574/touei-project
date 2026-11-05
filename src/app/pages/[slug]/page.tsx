@@ -3,8 +3,6 @@ import Header from '../../components/Header';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { notFound } from 'next/navigation';
 
-export const revalidate = 0; // 常に最新データを取得
-
 export default async function DynamicCustomPage({ params }: { params: { slug: string } }) {
   const { slug } = params;
 
