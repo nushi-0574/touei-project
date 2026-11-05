@@ -16,6 +16,7 @@ type NewsItem = {
 export default function AdminPage() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // 1. サイト緊急情報の設定ステート
   const [emergencyText, setEmergencyText] = useState('');
@@ -30,36 +31,51 @@ export default function AdminPage() {
   const [newCategory, setNewCategory] = useState('お知らせ');
   const [isAddingNews, setIsAddingNews] = useState(false);
 
-  // 初期データ取得
+  // 認証チェックとデータ取得
   useEffect(() => {
-    fetchAdminData();
+    checkUserAndFetchData();
   }, []);
 
-  const fetchAdminData = async () => {
+  const checkUserAndFetchData = async () => {
     setLoading(true);
     try {
+      // ユーザーのログイン状態を確認
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setIsAuthenticated(false);
+        setToast({ message: '管理者としてログインしていません。Discord等でログインしてください。', type: 'error' });
+        setLoading(false);
+        return;
+      }
+      setIsAuthenticated(true);
+
       // サイト設定の取得
-      const { data: settingData } = await supabase
+      const { data: settingData, error: settingError } = await supabase
         .from('site_settings')
         .select('*')
         .eq('id', 1)
         .single();
 
-      if (settingData) {
+      if (settingError) {
+        console.error('設定取得エラー:', settingError);
+      } else if (settingData) {
         setEmergencyText(settingData.emergency_text || '');
         setIsEmergencyActive(settingData.is_emergency_active || false);
       }
 
       // 新着情報の取得
-      const { data: newsData } = await supabase
+      const { data: newsData, error: newsError } = await supabase
         .from('news_items')
         .select('*')
         .order('id', { ascending: false });
 
-      if (newsData) {
+      if (newsError) {
+        console.error('新着情報取得エラー:', newsError);
+      } else if (newsData) {
         setNewsList(newsData);
       }
     } catch (err) {
+      console.error('予期せぬエラー:', err);
       setToast({ message: 'データの取得に失敗しました。', type: 'error' });
     } finally {
       setLoading(false);
@@ -83,8 +99,9 @@ export default function AdminPage() {
 
       if (error) throw error;
       setToast({ message: '緊急情報設定を更新しました。', type: 'success' });
-    } catch (err) {
-      setToast({ message: '設定の保存に失敗しました。', type: 'error' });
+    } catch (err: any) {
+      console.error('保存エラー詳細:', err);
+      setToast({ message: '設定の保存に失敗しました: ' + (err.message || ''), type: 'error' });
     } finally {
       setIsSavingSettings(false);
     }
@@ -122,8 +139,9 @@ export default function AdminPage() {
         setNewLink('');
         setToast({ message: '新着情報を追加しました。', type: 'success' });
       }
-    } catch (err) {
-      setToast({ message: '新着情報の追加に失敗しました。', type: 'error' });
+    } catch (err: any) {
+      console.error('追加エラー詳細:', err);
+      setToast({ message: '新着情報の追加に失敗しました: ' + (err.message || ''), type: 'error' });
     } finally {
       setIsAddingNews(false);
     }
@@ -139,8 +157,9 @@ export default function AdminPage() {
 
       setNewsList(newsList.filter((item) => item.id !== id));
       setToast({ message: '新着情報を削除しました。', type: 'success' });
-    } catch (err) {
-      setToast({ message: '削除に失敗しました。', type: 'error' });
+    } catch (err: any) {
+      console.error('削除エラー詳細:', err);
+      setToast({ message: '削除に失敗しました: ' + (err.message || ''), type: 'error' });
     }
   };
 
@@ -149,18 +168,35 @@ export default function AdminPage() {
       <Header />
 
       <main className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 py-8 w-full space-y-8">
-        <div className="border-b border-slate-300 pb-4">
-          <h1 className="text-xl font-bold text-slate-900 border-l-4 border-slate-800 pl-3">
-            東栄ポータル 統合管理パネル
-          </h1>
-          <p className="text-xs text-slate-600 mt-1">
-            トップページに表示される各種情報およびコンテンツのリアルタイム編集を行います。
-          </p>
+        <div className="border-b border-slate-300 pb-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 border-l-4 border-slate-800 pl-3">
+              東栄ポータル 統合管理パネル
+            </h1>
+            <p className="text-xs text-slate-600 mt-1">
+              トップページに表示される各種情報およびコンテンツのリアルタイム編集を行います。
+            </p>
+          </div>
+          <div>
+            <span className={`px-3 py-1 rounded text-xs font-semibold ${isAuthenticated ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'}`}>
+              {isAuthenticated ? '管理者認証済み' : '未認証（要ログイン）'}
+            </span>
+          </div>
         </div>
 
         {loading ? (
           <div className="bg-white border border-slate-300 rounded p-8 text-center text-xs text-slate-500">
             データを読み込み中...
+          </div>
+        ) : !isAuthenticated ? (
+          <div className="bg-white border border-slate-300 rounded p-8 text-center space-y-4">
+            <p className="text-xs text-red-600 font-bold">管理者権限が必要です。一度ログインを行ってください。</p>
+            <a
+              href="/toeiken"
+              className="inline-block px-4 py-2 bg-[#5865F2] text-white text-xs font-semibold rounded shadow hover:bg-[#4752C4] transition-colors"
+            >
+              認証ページへ移動 (Discord / Google)
+            </a>
           </div>
         ) : (
           <div className="space-y-8">
