@@ -7,27 +7,27 @@ import Toast from '../../components/Toast';
 import { supabase } from '../../../lib/supabase';
 
 type ExamResult = {
-  id: number;
+  id: string;
   exam_number: string;
-  name: string;
-  result: string;
-  exam_name: string;
+  full_name: string;
+  birth_date: string;
+  status: string;
+  department?: string;
 };
 
 export default function PoliceResultPage() {
   const [examNumber, setExamNumber] = useState('');
   
   // プルダウン用の生年月日ステート（年・月・日）
-  const [birthYear, setBirthYear] = useState('2000');
-  const [birthMonth, setBirthMonth] = useState('1');
-  const [birthDay, setBirthDay] = useState('1');
+  const [birthYear, setBirthYear] = useState('2010');
+  const [birthMonth, setBirthMonth] = useState('3');
+  const [birthDay, setBirthDay] = useState('10');
 
   const [resultData, setResultData] = useState<ExamResult | null>(null);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  // 静的プレレンダリングエラーを回避するため固定の基準年（2026年）から50年分を生成
   const baseYear = 2026;
   const years = Array.from({ length: 50 }, (_, i) => baseYear - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -49,6 +49,7 @@ export default function PoliceResultPage() {
       const formattedDay = String(birthDay).padStart(2, '0');
       const birthDateString = `${birthYear}-${formattedMonth}-${formattedDay}`;
 
+      // police_exam_results テーブルから exam_number と birth_date で検索
       const { data, error } = await supabase
         .from('police_exam_results')
         .select('*')
@@ -70,6 +71,14 @@ export default function PoliceResultPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // statusの値（pass/fail等）を分かりやすい表示に変換
+  const formatStatus = (status: string) => {
+    const lower = status?.toLowerCase();
+    if (lower === 'pass' || lower === '合格') return '合格';
+    if (lower === 'fail' || lower === '不合格') return '不合格';
+    return status;
   };
 
   return (
@@ -98,7 +107,7 @@ export default function PoliceResultPage() {
                 type="text"
                 value={examNumber}
                 onChange={(e) => setExamNumber(e.target.value)}
-                placeholder="例: POL-8001"
+                placeholder="例: 20260103"
                 className="w-full sm:w-1/2 px-3 py-2 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
               />
             </div>
@@ -164,22 +173,30 @@ export default function PoliceResultPage() {
                     </div>
                     <div>
                       <span className="text-slate-500 block mb-0.5">氏名</span>
-                      <span className="font-bold text-slate-800">{resultData.name}</span>
+                      <span className="font-bold text-slate-800">{resultData.full_name}</span>
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-200 pt-3">
-                    <span className="text-slate-500 block mb-1 text-xs">選考結果</span>
-                    <div className="inline-block px-4 py-1.5 rounded bg-blue-900 text-white font-bold text-sm tracking-widest">
-                      {resultData.result}
+                  <div className="border-t border-slate-200 pt-3 flex items-center justify-between">
+                    <div>
+                      <span className="text-slate-500 block mb-1 text-xs">選考結果</span>
+                      <div className={`inline-block px-4 py-1.5 rounded font-bold text-sm tracking-widest ${formatStatus(resultData.status) === '合格' ? 'bg-blue-900 text-white' : 'bg-red-800 text-white'}`}>
+                        {formatStatus(resultData.status)}
+                      </div>
                     </div>
+                    {resultData.department && (
+                      <div>
+                        <span className="text-slate-500 block mb-1 text-xs">配属先等</span>
+                        <span className="text-xs font-bold text-slate-800">{resultData.department}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
                 <div className="bg-amber-50 border border-amber-200 rounded p-4 text-xs text-amber-900">
                   <p className="font-bold mb-1">該当するデータが見つかりませんでした。</p>
                   <p className="text-[11px] text-amber-800">
-                    受考番号、または生年月日に誤りがないかご確認ください。
+                    受考番号（例: 20260103）および登録されている生年月日（例: 2010-03-10）が正しいかご確認ください。
                   </p>
                 </div>
               )}
