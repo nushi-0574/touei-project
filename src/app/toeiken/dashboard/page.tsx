@@ -10,88 +10,97 @@ export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  // 編集用フォームのステート
+  // フォームステート
   const [fullName, setFullName] = useState('');
-  const [birthDate, setBirthDate] = useState('');
   const [address, setAddress] = useState('');
+
+  // 生年月日プルダウン用ステート
+  const [birthYear, setBirthYear] = useState('2000');
+  const [birthMonth, setBirthMonth] = useState('1');
+  const [birthDay, setBirthDay] = useState('1');
+
+  const baseYear = 2026;
+  const years = Array.from({ length: 50 }, (_, i) => baseYear - i);
+  const months = Array.from({ length: 12 }, (_, i) => i + 1);
+  const days = Array.from({ length: 31 }, (_, i) => i + 1);
 
   useEffect(() => {
     async function loadUserData() {
+      // セッションの取得と維持
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
 
-        // 1. プロファイルの取得
+        // プロファイルおよびDiscord Identityの確認
         const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
 
+        // ログインセッション中のDiscord IDを取得
         const discordIdentity = session.user.identities?.find((id: any) => id.provider === 'discord');
-        const discordId = discordIdentity ? discordIdentity.id : null;
+        const discordId = discordIdentity ? discordIdentity.id : (session.user.app_metadata?.provider === 'discord' ? session.user.id : null);
 
         if (profileData) {
           setProfile(profileData);
           setFullName(profileData.full_name || '');
-          setBirthDate(profileData.birth_date || '');
           setAddress(profileData.address || '');
 
-          // Discord自動同期
+          if (profileData.birth_date) {
+            const [y, m, d] = profileData.birth_date.split('-');
+            if (y) setBirthYear(y);
+            if (m) setBirthMonth(String(parseInt(m, 10)));
+            if (d) setBirthDay(String(parseInt(d, 10)));
+          }
+
+          // Discord未保存だが認証済みの場合は自動同期
           if (discordId && !profileData.discord_id) {
-            await supabase
+            const { data: updated } = await supabase
               .from('profiles')
               .update({ discord_id: discordId })
-              .eq('id', session.user.id);
+              .eq('id', session.user.id)
+              .select()
+              .single();
+            if (updated) setProfile(updated);
           }
         } else {
-          // プロファイル未作成の場合は新規作成
+          // プロファイル初期作成
           const { data: newProfile } = await supabase
             .from('profiles')
             .insert([{ id: session.user.id, email: session.user.email, discord_id: discordId }])
             .select()
             .single();
 
-          if (newProfile) {
-            setProfile(newProfile);
-          }
+          if (newProfile) setProfile(newProfile);
         }
       }
       setLoading(false);
     }
+
     loadUserData();
+
+    // 認証状態の変更を常に監視して維持
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(session.user);
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
-  // プロフィール情報の保存・修正
-  const handleSaveProfile = async (e: React.FormEvent) => {
+  // 登録情報保存ボタンのアクション（警告トースト表示）
+  const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
-
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          email: user.email,
-          full_name: fullName,
-          birth_date: birthDate || null,
-          address: address,
-          updated_at: new Date().toISOString(),
-        });
-
-      if (error) throw error;
-      setToast({ message: '住民プロフィール情報を更新しました。', type: 'success' });
-    } catch (err: any) {
-      setToast({ message: '保存に失敗しました: ' + err.message, type: 'error' });
-    } finally {
-      setSaving(false);
-    }
+    setToast({ message: '登録変更期間外です。', type: 'error' });
   };
 
+  // Discord紐づけ処理
   const handleLinkDiscord = async () => {
     const { error } = await supabase.auth.linkIdentity({
       provider: 'discord',
@@ -105,7 +114,11 @@ export default function DashboardPage() {
     }
   };
 
-  const hasDiscordIdentity = user?.identities?.some((id: any) => id.provider === 'discord') || profile?.discord_id;
+  // 判定：セッション Identities、プロファイル内 discord_id、またはプロバイダ設定を広く判定
+  const hasDiscordIdentity = 
+    user?.identities?.some((id: any) => id.provider === 'discord') ||
+    user?.app_metadata?.provider === 'discord' ||
+    Boolean(profile?.discord_id);
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans">
@@ -128,7 +141,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-8">
-              {/* アカウント基本情報 */}
+              {/* 基本情報 */}
               <div className="bg-slate-50 p-4 border border-slate-200 rounded text-xs space-y-2">
                 <p><span className="font-bold text-slate-700">登録メールアドレス:</span> {user.email}</p>
                 <p><span className="font-bold text-slate-700">ユーザーID:</span> {user.id}</p>
@@ -142,7 +155,7 @@ export default function DashboardPage() {
 
                 <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">氏名（または県民名）</label>
+                    <label className="block font-bold text-slate-700 mb-1">氏名</label>
                     <input
                       type="text"
                       value={fullName}
@@ -154,16 +167,39 @@ export default function DashboardPage() {
 
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">生年月日</label>
-                    <input
-                      type="date"
-                      value={birthDate}
-                      onChange={(e) => setBirthDate(e.target.value)}
-                      className="w-full sm:w-1/2 px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:outline-none"
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={birthYear}
+                        onChange={(e) => setBirthYear(e.target.value)}
+                        className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
+                      >
+                        {years.map((y) => (
+                          <option key={y} value={y}>{y}年</option>
+                        ))}
+                      </select>
+                      <select
+                        value={birthMonth}
+                        onChange={(e) => setBirthMonth(e.target.value)}
+                        className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
+                      >
+                        {months.map((m) => (
+                          <option key={m} value={m}>{m}月</option>
+                        ))}
+                      </select>
+                      <select
+                        value={birthDay}
+                        onChange={(e) => setBirthDay(e.target.value)}
+                        className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
+                      >
+                        {days.map((d) => (
+                          <option key={d} value={d}>{d}日</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">居住地域・住所（県内等）</label>
+                    <label className="block font-bold text-slate-700 mb-1">居住地域・住所</label>
                     <input
                       type="text"
                       value={address}
@@ -176,10 +212,9 @@ export default function DashboardPage() {
                   <div className="pt-2">
                     <button
                       type="submit"
-                      disabled={saving}
-                      className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded transition-colors shadow disabled:opacity-50"
+                      className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded transition-colors shadow"
                     >
-                      {saving ? '保存中...' : '登録情報を保存する'}
+                      登録情報を保存する
                     </button>
                   </div>
                 </form>
