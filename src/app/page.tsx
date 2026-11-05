@@ -3,97 +3,108 @@ import Header from './components/Header';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col">
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
       <Header />
 
+      {/* 緊急・重要お知らせティッカー（官公庁風） */}
+      <div className="bg-amber-500/10 border-y border-amber-500/30 text-amber-300 text-xs py-2 px-4 text-center tracking-wider">
+        <span className="font-bold mr-2">[重要通知]</span>
+        東栄県ポータルおよび警察官採用試験の合否照会システムが稼働中です。
+      </div>
+
       <main className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 py-10 w-full flex flex-col justify-center">
-        {/* ヒーローセクション */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-8 sm:p-12 mb-8 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div>
-            <div className="inline-block px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-xs font-semibold mb-4">
+        {/* メインビジュアルセクション（重厚な行政風） */}
+        <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-8 sm:p-12 mb-8 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 rounded-bl-full pointer-events-none"></div>
+          
+          <div className="max-w-2xl">
+            <div className="inline-block px-3 py-1 bg-slate-700 text-blue-400 border border-blue-500/30 rounded text-xs font-semibold tracking-wider mb-4">
               東栄プロジェクト 公式総合ポータル
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">
-              東栄ポータルへようこそ
+            <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-wide mb-4">
+              東栄県 総合行政ポータル
             </h1>
-            <p className="text-sm text-slate-600 max-w-xl leading-relaxed">
-              東栄プロジェクトおよび東栄県における各種行政サービス、採用試験、コミュニティ参加への総合玄関口です。
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-8">
+              本ポータルは、東栄プロジェクト（東栄県）における住民認証、採用試験の合否照会、および各種行政手続きを統合管理する公式窓口です。
             </p>
-          </div>
-          <div className="flex flex-col gap-3 w-full sm:w-auto shrink-0">
-            <Link
-              href="/toeiken"
-              className="px-6 py-3 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-semibold rounded-lg shadow transition-colors text-center"
-            >
-              東栄県 住民ログイン (Discord)
-            </Link>
-            <Link
-              href="/toeiken/police-result"
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow transition-colors text-center"
-            >
-              警察官採用試験 合否照会
-            </Link>
+            
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/toeiken"
+                className="px-5 py-2.5 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-semibold rounded shadow transition-colors flex items-center gap-2"
+              >
+                <span>住民アカウント認証 (Discord)</span>
+              </Link>
+              <Link
+                href="/toeiken/police-result"
+                className="px-5 py-2.5 bg-blue-700 hover:bg-blue-600 text-white text-xs font-semibold rounded shadow transition-colors border border-blue-500/40"
+              >
+                警察官採用試験 合否照会
+              </Link>
+            </div>
           </div>
         </div>
 
-        {/* 機能・サービス一覧グリッド */}
-        <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 px-1">
-          主要サービス・コンテンツ
-        </h2>
+        {/* サービス一覧（公的機関の窓口風レイアウト） */}
+        <div className="mb-4 pb-2 border-b border-slate-700 flex items-center justify-between">
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            行政サービス・各種窓口
+          </h2>
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* カード1: 東栄県ポータル */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+          {/* カード1 */}
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 flex flex-col justify-between hover:border-slate-500 transition-colors">
             <div>
-              <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center font-bold mb-4 text-base">
-                県
+              <div className="text-xs font-bold text-emerald-400 mb-2 tracking-wider">
+                [ 住民サービス ]
               </div>
-              <h3 className="text-base font-bold text-slate-900 mb-2">東栄県専用ポータル</h3>
-              <p className="text-xs text-slate-600 leading-relaxed mb-6">
-                東栄プロジェクト（東栄県）の住民および関係者向けの専用ダッシュボードと各種手続きを行います。
+              <h3 className="text-sm font-bold text-white mb-2">東栄県専用ポータル</h3>
+              <p className="text-xs text-slate-400 leading-relaxed mb-6">
+                東栄県の住民および関係者向けの専用ダッシュボード。各種申請や県内情報へのアクセスを行います。
               </p>
             </div>
             <Link
               href="/toeiken"
-              className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+              className="text-xs font-medium text-blue-400 hover:text-blue-300 flex items-center gap-1"
             >
-              アクセスする &rarr;
+              窓口へ進む &rarr;
             </Link>
           </div>
 
-          {/* カード2: 警察採用試験 合否照会 */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+          {/* カード2 */}
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 flex flex-col justify-between hover:border-slate-500 transition-colors">
             <div>
-              <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center font-bold mb-4 text-base">
-                試
+              <div className="text-xs font-bold text-blue-400 mb-2 tracking-wider">
+                [ 採用・試験 ]
               </div>
-              <h3 className="text-base font-bold text-slate-900 mb-2">警察官採用試験 合否照会</h3>
-              <p className="text-xs text-slate-600 leading-relaxed mb-6">
-                警察官採用試験を受考された方の専用照会ページです。受考番号と生年月日を入力して結果を確認できます。
+              <h3 className="text-sm font-bold text-white mb-2">警察官採用試験 合否照会</h3>
+              <p className="text-xs text-slate-400 leading-relaxed mb-6">
+                警察官採用試験の受考者を対象とした結果照会システムです。受考番号と生年月日が必要です。
               </p>
             </div>
             <Link
               href="/toeiken/police-result"
-              className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+              className="text-xs font-medium text-blue-400 hover:text-blue-300 flex items-center gap-1"
             >
-              照会ページへ &rarr;
+              照会ページを開く &rarr;
             </Link>
           </div>
 
-          {/* カード3: 管理画面・その他 */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+          {/* カード3 */}
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 flex flex-col justify-between hover:border-slate-500 transition-colors">
             <div>
-              <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center font-bold mb-4 text-base">
-                管
+              <div className="text-xs font-bold text-amber-400 mb-2 tracking-wider">
+                [ 管理・システム ]
               </div>
-              <h3 className="text-base font-bold text-slate-900 mb-2">管理者・システム設定</h3>
-              <p className="text-xs text-slate-600 leading-relaxed mb-6">
-                合否データの登録・管理やユーザーのロール制御を行うための管理者用パネルです（権限が必要となります）。
+              <h3 className="text-sm font-bold text-white mb-2">管理者専用パネル</h3>
+              <p className="text-xs text-slate-400 leading-relaxed mb-6">
+                合否データの登録やシステムの設定を行うための管理者向け機能です（要権限）。
               </p>
             </div>
             <Link
               href="/admin"
-              className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1"
+              className="text-xs font-medium text-blue-400 hover:text-blue-300 flex items-center gap-1"
             >
               管理画面へ &rarr;
             </Link>
@@ -101,8 +112,8 @@ export default function Home() {
         </div>
       </main>
 
-      <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
-        &copy; 2026 葵プロジェクト / 東栄プロジェクト All Rights Reserved.
+      <footer className="border-t border-slate-800 bg-slate-950 py-6 text-center text-[11px] text-slate-500">
+        &copy; 2026 葵プロジェクト / 東栄プロジェクト 運営局. All Rights Reserved.
       </footer>
     </div>
   );
