@@ -5,6 +5,7 @@ import type { User } from '@supabase/supabase-js';
 import Link from 'next/link';
 import Header from '../../components/Header';
 import Breadcrumbs from '../../components/Breadcrumbs';
+import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import Toast from '../../components/Toast';
 import { supabase } from '../../../lib/supabase';
 import { getDaysInMonth } from '../../../lib/dates';
@@ -33,12 +34,15 @@ export default function DashboardPage() {
   const [fullName, setFullName] = useState('');
   const [address, setAddress] = useState('');
   const baseYear = useCurrentYear();
-  const [birthYear, setBirthYear] = useState(String(baseYear - 20));
-  const [birthMonth, setBirthMonth] = useState('1');
-  const [birthDay, setBirthDay] = useState('1');
+  const [birthYear, setBirthYear] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthDay, setBirthDay] = useState('');
+  const [birthDateError, setBirthDateError] = useState('');
   const years = Array.from({ length: 121 }, (_, i) => baseYear - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
-  const days = Array.from({ length: getDaysInMonth(Number(birthYear), Number(birthMonth)) }, (_, i) => i + 1);
+  const days = birthYear && birthMonth
+    ? Array.from({ length: getDaysInMonth(Number(birthYear), Number(birthMonth)) }, (_, i) => i + 1)
+    : [];
 
   useEffect(() => {
     let active = true;
@@ -97,9 +101,9 @@ export default function DashboardPage() {
         setAddress(nextProfile.address || '');
         if (nextProfile.birth_date) {
           const [year, month, day] = nextProfile.birth_date.split('-');
-          if (year) setBirthYear(year);
-          if (month) setBirthMonth(String(Number(month)));
-          if (day) setBirthDay(String(Number(day)));
+          setBirthYear(year ?? '');
+          setBirthMonth(month ? String(Number(month)) : '');
+          setBirthDay(day ? String(Number(day)) : '');
         }
       } catch (error) {
         console.error('ユーザー情報の取得に失敗しました:', error);
@@ -120,7 +124,19 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!user) return;
 
-    const birthDate = `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`;
+    if ([birthYear, birthMonth, birthDay].some(Boolean) && ![birthYear, birthMonth, birthDay].every(Boolean)) {
+      setBirthDateError('生年月日を登録する場合は、年・月・日をすべて選択してください。');
+      return;
+    }
+
+    const birthDate = birthYear && birthMonth && birthDay
+      ? `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`
+      : '';
+    if (birthDate && new Date(`${birthDate}T00:00:00`).getTime() > Date.now()) {
+      setBirthDateError('生年月日に未来の日付は指定できません。');
+      return;
+    }
+    setBirthDateError('');
     setSaving(true);
     try {
       const { data, error } = await supabase
@@ -130,7 +146,7 @@ export default function DashboardPage() {
           email: user.email,
           full_name: fullName.trim(),
           address: address.trim(),
-          birth_date: birthDate,
+          birth_date: birthDate || null,
         })
         .select()
         .single();
@@ -211,7 +227,7 @@ export default function DashboardPage() {
           </div>
 
           {loading ? (
-            <p className="text-xs text-slate-500 text-center py-4">読み込み中...</p>
+            <ContentSkeleton rows={3} />
           ) : !user ? (
             <div className="text-center py-6">
               <p className="text-xs text-red-600 mb-3">ログインが必要です。</p>
@@ -245,23 +261,32 @@ export default function DashboardPage() {
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       required
-                      placeholder="例: 東栄 太郎"
+                      autoComplete="name"
                       className="w-full sm:w-1/2 px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">生年月日</label>
+                    <label className="block font-bold text-slate-700 mb-1">生年月日 <span className="font-normal text-slate-500">（任意）</span></label>
+                    <p className="mb-2 text-xs leading-relaxed text-slate-500">必要な手続きで求められた場合のみ登録してください。未選択のまま保存できます。</p>
                     <div className="flex flex-wrap items-center gap-2">
                       <select
                         value={birthYear}
                         onChange={(e) => {
                           const year = e.target.value;
                           setBirthYear(year);
-                          setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(year), Number(birthMonth)))));
+                          if (year && birthMonth && birthDay) {
+                            setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(year), Number(birthMonth)))));
+                          }
+                          setBirthDateError('');
                         }}
+                        id="birth-year"
+                        aria-label="生年月日の年"
+                        aria-invalid={Boolean(birthDateError)}
+                        aria-describedby={birthDateError ? 'birth-date-error' : undefined}
                         className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                       >
+                        <option value="">年</option>
                         {years.map((y) => (
                           <option key={y} value={y}>{y}年</option>
                         ))}
@@ -271,24 +296,39 @@ export default function DashboardPage() {
                         onChange={(e) => {
                           const month = e.target.value;
                           setBirthMonth(month);
-                          setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(birthYear), Number(month)))));
+                          if (birthYear && month && birthDay) {
+                            setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(birthYear), Number(month)))));
+                          }
+                          setBirthDateError('');
                         }}
+                        id="birth-month"
+                        aria-label="生年月日の月"
+                        aria-invalid={Boolean(birthDateError)}
+                        aria-describedby={birthDateError ? 'birth-date-error' : undefined}
                         className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                       >
+                        <option value="">月</option>
                         {months.map((m) => (
                           <option key={m} value={m}>{m}月</option>
                         ))}
                       </select>
                       <select
                         value={birthDay}
-                        onChange={(e) => setBirthDay(e.target.value)}
+                        onChange={(e) => { setBirthDay(e.target.value); setBirthDateError(''); }}
+                        id="birth-day"
+                        aria-label="生年月日の日"
+                        aria-invalid={Boolean(birthDateError)}
+                        aria-describedby={birthDateError ? 'birth-date-error' : undefined}
+                        disabled={!birthYear || !birthMonth}
                         className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                       >
+                        <option value="">日</option>
                         {days.map((d) => (
                           <option key={d} value={d}>{d}日</option>
                         ))}
                       </select>
                     </div>
+                    {birthDateError && <p id="birth-date-error" role="alert" className="mt-2 text-xs text-red-700">{birthDateError}</p>}
                   </div>
 
                   <div>

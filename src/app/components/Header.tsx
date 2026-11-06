@@ -2,17 +2,32 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 import { locales, useLocale } from '../../lib/i18n';
 
 export default function Header() {
   const { locale, setLocale, t } = useLocale();
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPoliceStaff, setIsPoliceStaff] = useState(false);
   const [isServiceStaff, setIsServiceStaff] = useState(false);
+  const isCurrent = (href: string) => href === '/'
+    ? pathname === '/'
+    : pathname === href || pathname.startsWith(`${href}/`);
+  const isResidentCurrent = isCurrent('/toeiken') && !isCurrent('/toeiken/police-result');
+  const isAdminCurrent = isCurrent('/admin') && !isCurrent('/admin/services');
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -94,23 +109,23 @@ export default function Header() {
 
         {/* PC用ナビゲーション */}
         <nav className="hidden md:flex items-center gap-4 text-xs">
-          <Link href="/" className="hover:text-blue-400 transition-colors">{t('home')}</Link>
-          <Link href={user ? '/toeiken/dashboard' : '/toeiken'} className="hover:text-blue-400 transition-colors">{t('residents')}</Link>
-          <Link href="/toeiken/police-result" className="hover:text-blue-400 transition-colors">{t('examResults')}</Link>
+          <Link href="/" aria-current={isCurrent('/') ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isCurrent('/') ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>{t('home')}</Link>
+          <Link href={user ? '/toeiken/dashboard' : '/toeiken'} aria-current={isResidentCurrent ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isResidentCurrent ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>{t('residents')}</Link>
+          <Link href="/toeiken/police-result" aria-current={isCurrent('/toeiken/police-result') ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isCurrent('/toeiken/police-result') ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>{t('examResults')}</Link>
           {isPoliceStaff && (
-            <Link href="/police" className="text-emerald-300 hover:text-emerald-200 font-semibold transition-colors">
+            <Link href="/police" aria-current={isCurrent('/police') ? 'page' : undefined} className={`font-semibold transition-colors ${isCurrent('/police') ? 'text-white underline underline-offset-8' : 'text-emerald-300 hover:text-emerald-200'}`}>
               {t('policePage')}
             </Link>
           )}
           
           {/* 管理者権限がある場合のみ表示 */}
           {isAdmin && (
-            <Link href="/admin" className="text-amber-400 hover:text-amber-300 font-semibold transition-colors">
+            <Link href="/admin" aria-current={isAdminCurrent ? 'page' : undefined} className={`font-semibold transition-colors ${isAdminCurrent ? 'text-white underline underline-offset-8' : 'text-amber-400 hover:text-amber-300'}`}>
               {t('adminPanel')}
             </Link>
           )}
           {isServiceStaff && (
-            <Link href="/admin/services" className="text-blue-300 hover:text-blue-200 font-semibold transition-colors">
+            <Link href="/admin/services" aria-current={isCurrent('/admin/services') ? 'page' : undefined} className={`font-semibold transition-colors ${isCurrent('/admin/services') ? 'text-white underline underline-offset-8' : 'text-blue-300 hover:text-blue-200'}`}>
               業務管理
             </Link>
           )}
@@ -146,7 +161,7 @@ export default function Header() {
         <button
           onClick={() => setIsOpen((open) => !open)}
           className="md:hidden p-2 text-slate-300 hover:text-white focus:outline-none"
-          aria-label={t('openMenu')}
+          aria-label={isOpen ? 'メニューを閉じる' : t('openMenu')}
           aria-expanded={isOpen}
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -165,21 +180,24 @@ export default function Header() {
           <Link
             href="/"
             onClick={() => setIsOpen(false)}
-            className="block py-2 text-slate-200 hover:text-white border-b border-slate-700/50"
+            aria-current={isCurrent('/') ? 'page' : undefined}
+            className={`block min-h-11 py-3 border-b border-slate-700/50 ${isCurrent('/') ? 'font-bold text-white' : 'text-slate-200 hover:text-white'}`}
           >
             {t('home')}
           </Link>
           <Link
             href={user ? '/toeiken/dashboard' : '/toeiken'}
             onClick={() => setIsOpen(false)}
-            className="block py-2 text-slate-200 hover:text-white border-b border-slate-700/50"
+            aria-current={isResidentCurrent ? 'page' : undefined}
+            className={`block min-h-11 py-3 border-b border-slate-700/50 ${isResidentCurrent ? 'font-bold text-white' : 'text-slate-200 hover:text-white'}`}
           >
             {user ? t('myPage') : t('residents')}
           </Link>
           <Link
             href="/toeiken/police-result"
             onClick={() => setIsOpen(false)}
-            className="block py-2 text-slate-200 hover:text-white border-b border-slate-700/50"
+            aria-current={isCurrent('/toeiken/police-result') ? 'page' : undefined}
+            className={`block min-h-11 py-3 border-b border-slate-700/50 ${isCurrent('/toeiken/police-result') ? 'font-bold text-white' : 'text-slate-200 hover:text-white'}`}
           >
             {t('examResults')}
           </Link>
@@ -187,7 +205,8 @@ export default function Header() {
             <Link
               href="/police"
               onClick={() => setIsOpen(false)}
-              className="block py-2 text-emerald-300 hover:text-emerald-200 font-semibold border-b border-slate-700/50"
+              aria-current={isCurrent('/police') ? 'page' : undefined}
+              className={`block min-h-11 py-3 font-semibold border-b border-slate-700/50 ${isCurrent('/police') ? 'text-white' : 'text-emerald-300 hover:text-emerald-200'}`}
             >
               {t('policePage')}
             </Link>
@@ -198,7 +217,8 @@ export default function Header() {
             <Link
               href="/admin"
               onClick={() => setIsOpen(false)}
-              className="block py-2 text-amber-400 hover:text-amber-300 font-semibold border-b border-slate-700/50"
+              aria-current={isAdminCurrent ? 'page' : undefined}
+              className={`block min-h-11 py-3 font-semibold border-b border-slate-700/50 ${isAdminCurrent ? 'text-white' : 'text-amber-400 hover:text-amber-300'}`}
             >
               {t('adminPanel')}
             </Link>
@@ -207,7 +227,8 @@ export default function Header() {
             <Link
               href="/admin/services"
               onClick={() => setIsOpen(false)}
-              className="block py-2 text-blue-300 hover:text-blue-200 font-semibold border-b border-slate-700/50"
+              aria-current={isCurrent('/admin/services') ? 'page' : undefined}
+              className={`block min-h-11 py-3 font-semibold border-b border-slate-700/50 ${isCurrent('/admin/services') ? 'text-white' : 'text-blue-300 hover:text-blue-200'}`}
             >
               業務管理
             </Link>
@@ -233,13 +254,13 @@ export default function Header() {
                 <Link
                   href="/toeiken/dashboard"
                   onClick={() => setIsOpen(false)}
-                  className="block py-2 text-center bg-blue-600 hover:bg-blue-500 rounded text-white font-semibold transition-colors"
+                  className="block min-h-11 py-3 text-center bg-blue-600 hover:bg-blue-500 rounded text-white font-semibold transition-colors"
                 >
                   {t('myPage')}
                 </Link>
                 <button
                   onClick={handleSignOut}
-                  className="block w-full py-2 text-center border border-slate-600 rounded text-slate-200"
+                  className="block w-full min-h-11 py-3 text-center border border-slate-600 rounded text-slate-200"
                 >
                   {t('signOut')}
                 </button>
@@ -248,7 +269,7 @@ export default function Header() {
               <Link
                 href="/toeiken"
                 onClick={() => setIsOpen(false)}
-                className="block py-2 text-center bg-blue-600 hover:bg-blue-500 rounded text-white font-semibold transition-colors"
+                className="block min-h-11 py-3 text-center bg-blue-600 hover:bg-blue-500 rounded text-white font-semibold transition-colors"
               >
                 {t('signIn')}
               </Link>

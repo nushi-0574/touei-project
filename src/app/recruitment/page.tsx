@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import Header from '../components/Header';
 import Breadcrumbs from '../components/Breadcrumbs';
+import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import { useLocale } from '../../lib/i18n';
 import { supabase } from '../../lib/supabase';
 
@@ -235,7 +236,7 @@ export default function RecruitmentPage() {
         </div>
         {errorMessage && <p role="alert" className="mt-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">{errorMessage}</p>}
         {notice && <p role="status" className="mt-4 rounded border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-        {loading ? <p className="py-16 text-center">{t('loading')}</p> : (
+        {loading ? <ContentSkeleton /> : (
           <div className="mt-5 grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
             <section className="space-y-4">
               <h2 className="text-lg font-bold">{t('recruitment')}</h2>

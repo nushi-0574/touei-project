@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 
 type Subscription = {
   status: string;
@@ -139,7 +140,7 @@ export default function BillingPanel({ userId }: { userId: string }) {
   return (
     <div className="space-y-3">
       {loading ? (
-        <p className="text-xs text-slate-500">契約状態を確認しています...</p>
+        <ContentSkeleton rows={1} />
       ) : errorMessage ? (
         <p role="alert" className="text-xs text-red-700">{errorMessage}</p>
       ) : subscription ? (

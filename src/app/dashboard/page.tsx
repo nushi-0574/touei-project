@@ -10,6 +10,7 @@ import Breadcrumbs from '../components/Breadcrumbs';
 import Toast from '../components/Toast';
 import { getErrorMessage } from '../../lib/errors';
 import BillingPanel from './BillingPanel';
+import LoadingScreen from '../components/LoadingScreen';
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -60,12 +61,7 @@ export default function DashboardPage() {
   }, [router]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center">
-        <div className="w-6 h-6 border-2 border-slate-300 border-t-[#0046ff] rounded-full animate-spin mb-3"></div>
-        <p className="text-slate-500 text-xs">読み込み中...</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (

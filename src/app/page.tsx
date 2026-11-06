@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Header from './components/Header';
+import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import { supabase } from '../lib/supabase';
 import { getErrorMessage } from '../lib/errors';
 
@@ -120,7 +121,7 @@ export default function Home() {
             </div>
             
             {loading ? (
-              <p className="text-xs text-slate-500 py-4 text-center">読み込み中...</p>
+              <ContentSkeleton rows={2} />
             ) : loadError ? (
               <p role="alert" className="text-xs text-red-700 py-4 text-center">情報を読み込めませんでした。時間をおいて再度お試しください。</p>
             ) : newsList.length === 0 ? (

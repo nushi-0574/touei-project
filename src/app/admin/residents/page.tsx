@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
 import Breadcrumbs from '../../components/Breadcrumbs';
+import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import { supabase } from '../../../lib/supabase';
 
 type Resident = {
@@ -52,6 +53,7 @@ export default function ResidentRegistryPage() {
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | Resident['resident_status']>('all');
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
@@ -79,6 +81,7 @@ export default function ResidentRegistryPage() {
       const token = await getAccessToken();
       const params = new URLSearchParams({ page: String(page) });
       if (search) params.set('q', search);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
       const response = await fetch(`/api/admin/residents?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -112,7 +115,7 @@ export default function ResidentRegistryPage() {
     } finally {
       setLoading(false);
     }
-  }, [getAccessToken, page, search]);
+  }, [getAccessToken, page, search, statusFilter]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadResidents(), 0);
@@ -254,7 +257,7 @@ export default function ResidentRegistryPage() {
                 <p className="mt-1 text-xs text-slate-500">登録済みの住民情報を確認できます。生年月日・住所は管理業務上の取扱いに注意してください。</p>
               </div>
               <form
-                className="flex gap-2"
+                className="grid w-full gap-2 sm:w-auto sm:grid-cols-[minmax(12rem,1fr)_auto_auto]"
                 onSubmit={(event) => {
                   event.preventDefault();
                   setPage(0);
@@ -263,18 +266,72 @@ export default function ResidentRegistryPage() {
               >
                 <label className="sr-only" htmlFor="resident-search">氏名またはメールアドレスで検索</label>
                 <input id="resident-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="氏名・メールアドレス" className="min-w-0 rounded border border-slate-300 px-3 py-2 text-sm" />
-                <button className="rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">検索</button>
+                <label className="sr-only" htmlFor="resident-status-filter">住民状態で絞り込み</label>
+                <select
+                  id="resident-status-filter"
+                  value={statusFilter}
+                  onChange={(event) => {
+                    setPage(0);
+                    setStatusFilter(event.target.value as typeof statusFilter);
+                  }}
+                  className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="all">すべての状態</option>
+                  <option value="active">有効</option>
+                  <option value="inactive">利用停止</option>
+                  <option value="pending">確認待ち</option>
+                </select>
+                <button className="min-h-10 rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">検索</button>
               </form>
             </div>
 
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 p-3 text-sm">
+              <span className="text-xs text-slate-600">全 {total} 件 · ページ {page + 1} / {pageCount}</span>
+              <div className="flex w-full gap-2 sm:w-auto">
+                <button type="button" disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)} className="min-h-9 flex-1 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs disabled:opacity-40 sm:flex-none">前へ</button>
+                <button type="button" disabled={page + 1 >= pageCount || loading} onClick={() => setPage((value) => value + 1)} className="min-h-9 flex-1 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs disabled:opacity-40 sm:flex-none">次へ</button>
+              </div>
+            </div>
+
             {loading ? (
-              <p className="p-8 text-center text-sm text-slate-500">住民情報を読み込んでいます...</p>
+              <ContentSkeleton rows={5} />
             ) : errorMessage ? (
               <p className="p-8 text-center text-sm text-slate-500">住民一覧を表示できません。</p>
             ) : residents.length === 0 ? (
               <p className="p-8 text-center text-sm text-slate-500">該当する住民は登録されていません。</p>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <ul className="divide-y divide-slate-100 md:hidden">
+                {residents.map((resident) => (
+                  <li key={resident.id} className="space-y-2 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words font-semibold text-slate-900">{resident.full_name || '氏名未登録'}</p>
+                        <p className="break-all text-xs text-slate-500">{resident.email || 'メール未登録'}</p>
+                      </div>
+                      <span className={`shrink-0 rounded px-2 py-1 text-xs font-semibold ${resident.resident_status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                        {resident.resident_status === 'active' ? '有効' : resident.resident_status === 'inactive' ? '利用停止' : '確認待ち'}
+                      </span>
+                    </div>
+                    <p className="break-words text-xs text-slate-600">{resident.address || '住所未登録'}</p>
+                    <p className="text-xs text-slate-500">生年月日: {resident.birth_date || '未登録'} · 登録日: {new Intl.DateTimeFormat('ja-JP', { dateStyle: 'medium' }).format(new Date(resident.created_at))}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {resident.is_super_admin && <span className="rounded bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-900">主任管理者</span>}
+                      {resident.is_admin && !resident.is_super_admin && <span className="rounded bg-blue-100 px-2 py-1 text-[10px] font-semibold text-blue-900">管理者</span>}
+                      {resident.is_police_staff && <span className="rounded bg-emerald-100 px-2 py-1 text-[10px] font-semibold text-emerald-900">警察職員</span>}
+                      <button
+                        type="button"
+                        disabled={updatingResidentId === resident.id || resident.is_super_admin}
+                        onClick={() => void toggleResidentStatus(resident)}
+                        className="ml-auto min-h-9 rounded border border-slate-300 px-3 py-1 text-xs font-semibold disabled:opacity-40"
+                      >
+                        {updatingResidentId === resident.id ? '更新中...' : resident.resident_status === 'active' ? '利用停止' : '有効化'}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[860px] text-left text-sm">
                   <thead className="bg-slate-50 text-xs text-slate-600">
                     <tr>
@@ -320,11 +377,12 @@ export default function ResidentRegistryPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
 
-            <div className="flex items-center justify-between border-t border-slate-200 p-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-3 text-sm">
               <span className="text-xs text-slate-500">ページ {page + 1} / {pageCount}</span>
-              <div className="flex gap-2">
+              <div className="flex w-full gap-2 sm:w-auto">
                 <button type="button" disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)} className="rounded border border-slate-300 px-3 py-1.5 disabled:opacity-40">前へ</button>
                 <button type="button" disabled={page + 1 >= pageCount || loading} onClick={() => setPage((value) => value + 1)} className="rounded border border-slate-300 px-3 py-1.5 disabled:opacity-40">次へ</button>
               </div>

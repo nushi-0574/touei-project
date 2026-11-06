@@ -6,6 +6,7 @@ import type { LatLng } from 'leaflet';
 import Link from 'next/link';
 import Header from '../components/Header';
 import Breadcrumbs from '../components/Breadcrumbs';
+import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import { useLocale } from '../../lib/i18n';
 import { supabase } from '../../lib/supabase';
 import type { MapLocation } from './LeafletMap';
@@ -186,7 +187,7 @@ export default function CommunityMapPage() {
         {errorMessage && <p role="alert" className="mt-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">{errorMessage}</p>}
         {notice && <p role="status" className="mt-4 rounded border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
         {loading ? (
-          <p className="py-16 text-center text-sm text-slate-500">{t('loading')}</p>
+          <ContentSkeleton />
         ) : (
           <div className="mt-5 grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
             <section className="overflow-hidden rounded border border-slate-200 bg-white">

@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { User } from '@supabase/supabase-js';
 import { getAuthenticatedUser, getSupabaseAdmin } from './supabase';
+import { isChiefAdministratorEmail } from '../administrator';
 
 export const STAFF_PERMISSIONS = [
   'manage_residents',
@@ -38,8 +39,9 @@ export async function authorizeStaff(
     .maybeSingle();
   if (profileError) throw profileError;
 
-  if (profile?.is_admin) {
-    return { user, isSuperAdmin: profile.is_super_admin === true };
+  const isChiefAdmin = isChiefAdministratorEmail(user.email);
+  if (profile?.is_admin || isChiefAdmin) {
+    return { user, isSuperAdmin: profile?.is_super_admin === true || isChiefAdmin };
   }
   if (permission === 'manage_staff') return null;
 

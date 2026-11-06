@@ -1,6 +1,7 @@
 import { getApplicationUrl, getSupabaseAdmin } from '@/src/lib/server/billing';
 import { authorizeStaff } from '@/src/lib/server/authorization';
 import { getErrorMessage } from '@/src/lib/errors';
+import { isChiefAdministratorEmail } from '@/src/lib/administrator';
 
 type ResidentInput = {
   email?: unknown;
@@ -22,6 +23,10 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const search = (url.searchParams.get('q') ?? '').trim().replace(/[%_(),]/g, '').slice(0, 100);
+    const status = url.searchParams.get('status') ?? 'all';
+    if (!['all', 'active', 'inactive', 'pending'].includes(status)) {
+      return Response.json({ error: '住民状態の絞り込み条件が不正です。' }, { status: 400 });
+    }
     const page = Math.max(0, Number.parseInt(url.searchParams.get('page') ?? '0', 10) || 0);
     const from = page * 50;
     const to = from + 49;
@@ -31,6 +36,7 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false })
       .range(from, to);
     if (search) query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
+    if (status !== 'all') query = query.eq('resident_status', status);
 
     const [{ data, error, count }, permissionsResult] = await Promise.all([
       query,
@@ -41,7 +47,14 @@ export async function GET(request: Request) {
     if (error) throw error;
     if (permissionsResult.error) throw permissionsResult.error;
     return Response.json({
-      residents: data,
+      residents: data?.map((resident) => {
+        const isChiefAdmin = isChiefAdministratorEmail(resident.email);
+        return {
+          ...resident,
+          is_admin: resident.is_admin || isChiefAdmin,
+          is_super_admin: resident.is_super_admin || isChiefAdmin,
+        };
+      }),
       permissions: permissionsResult.data,
       isSuperAdmin: authorized.isSuperAdmin,
       total: count ?? 0,

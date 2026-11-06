@@ -3,10 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Header from '../components/Header';
+import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import Toast from '../components/Toast';
 import { supabase } from '../../lib/supabase';
 import { getErrorMessage } from '../../lib/errors';
 import { normalizeCommandSystemUrl } from '../../lib/commandSystem';
+import { isChiefAdministratorEmail } from '../../lib/administrator';
 
 type NewsItem = { id: number; date_str: string; title: string; link_url: string; category: string; };
 type ExamResultItem = { id: number; exam_number: string; name: string; birth_date: string; result: string; exam_name: string; };
@@ -119,8 +121,9 @@ export default function AdminPage() {
         .maybeSingle();
 
       if (profileError) throw profileError;
-      setIsSuperAdmin(profile?.is_super_admin === true);
-      if (!profile?.is_admin) {
+      const isChiefAdmin = isChiefAdministratorEmail(session.user.email);
+      setIsSuperAdmin(profile?.is_super_admin === true || isChiefAdmin);
+      if (!profile?.is_admin && !isChiefAdmin) {
         setIsAuthenticated(false);
         return;
       }
@@ -152,7 +155,16 @@ export default function AdminPage() {
       if (examRes.data) setExamResultsList(examRes.data);
       if (pagesRes.data) setCustomPages(pagesRes.data);
       if (cardsRes.data) setMenuCards(cardsRes.data);
-      if (usersRes.data) setUserProfiles(usersRes.data);
+      if (usersRes.data) {
+        setUserProfiles(usersRes.data.map((user) => {
+          const isChiefAdmin = isChiefAdministratorEmail(user.email);
+          return {
+            ...user,
+            is_admin: user.is_admin || isChiefAdmin,
+            is_super_admin: user.is_super_admin || isChiefAdmin,
+          };
+        }));
+      }
 
     } catch (err) {
       console.error('データ取得エラー:', err);
@@ -548,9 +560,7 @@ export default function AdminPage() {
         </div>
 
         {loading ? (
-          <div className="bg-white border border-slate-300 rounded p-8 text-center text-xs text-slate-500">
-            管理者データを読み込み中...
-          </div>
+          <ContentSkeleton />
         ) : !isAuthenticated ? (
           <div className="bg-white border border-slate-300 rounded p-8 text-center space-y-4">
             <p className="text-xs text-red-600 font-bold">管理者権限が必要です。ログインを行ってください。</p>

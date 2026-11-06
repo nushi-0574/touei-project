@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '../components/Header';
 import Breadcrumbs from '../components/Breadcrumbs';
+import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import { supabase } from '../../lib/supabase';
 import { getErrorMessage } from '../../lib/errors';
 
@@ -57,7 +58,7 @@ export default function PagesIndex() {
             資料・案内一覧
           </h1>
           {loading ? (
-            <p className="text-xs text-slate-500 text-center py-6">読み込み中...</p>
+            <ContentSkeleton rows={3} />
           ) : errorMessage ? (
             <p role="alert" className="text-xs text-red-700 py-4">{errorMessage}</p>
           ) : pages.length === 0 ? (

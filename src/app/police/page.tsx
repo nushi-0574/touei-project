@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import Breadcrumbs from '../components/Breadcrumbs';
+import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import { normalizeCommandSystemUrl } from '../../lib/commandSystem';
 import { getErrorMessage } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
@@ -71,7 +72,7 @@ export default function PolicePage() {
         <Breadcrumbs items={[{ label: '警察専用ページ' }]} />
 
         {loading ? (
-          <p className="text-center text-sm text-slate-500 py-12">読み込み中...</p>
+          <ContentSkeleton />
         ) : errorMessage ? (
           <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-4">
             {errorMessage}

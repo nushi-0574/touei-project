@@ -57,6 +57,8 @@ Stripe DashboardにWebhookエンドポイント `${APP_URL}/api/billing/webhook`
 
 デプロイ前に `supabase/migrations/20261106010000_police_roles_command_system.sql` を適用してください。主任管理者 `reimari.nusi@gmail.com` が既存プロフィールに設定され、管理者画面から一般管理者が警察職員ロールを、主任管理者が管理者権限を設定できるようになります。
 
+`20261106010000_police_roles_command_system.sql` をすでに適用済みで、このアカウントが一般管理者のままの場合は、`supabase/migrations/20261106030000_promote_chief_administrator.sql` の内容をSupabase SQL Editorで実行してください。このSQLだけで必要なロール列を追加し、対象プロフィールを主任管理者へ更新して、結果を表示します。対象のSupabase Authアカウントまたはプロフィールが見つからない場合はエラーを返します。管理画面と職員管理APIもこのメールアドレスを主任管理者として扱います。
+
 `/pages` の公開資料一覧を利用するには `supabase/migrations/20261106020000_custom_pages_metadata.sql` も適用してください。既存の `custom_pages` テーブルに不足している公開設定・検索メタデータ列を追加します。
 
 管理画面の「警察向けCommand system接続設定」に、Command systemを起動しているPCのLAN URL（例: `http://192.168.1.10:8765`）を登録します。警察職員ページの「110番通報を開始」ボタンは、既存Command systemの110番通報確認画面を開きます。Command systemを起動している端末と通報を行う端末がネットワーク経由で接続できる必要があります。
@@ -79,7 +81,7 @@ npm run start
 ## 主な画面
 
 - `/` — お知らせ、緊急情報、管理画面で設定したメニュー
-- `/login`、`/signup` — メールアドレスおよびGoogle認証
+- `/login`、`/signup` — メールアドレスおよびGoogle認証。登録時はメールアドレスと8文字以上のパスワードのみを入力し、氏名・住所・生年月日は必要に応じてマイページから登録します。メール確認が有効な環境では、登録完了後に確認メールを再送できます。
 - `/toeiken` — Google・Discordによる住民向け認証
 - `/toeiken/portal` — 住民ポータルの機能一覧
 - `/toeiken/services` — 住民申請、住民証、通知、イベント、コミュニティ、問い合わせ

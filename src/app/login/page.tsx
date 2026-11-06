@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -11,14 +11,18 @@ import { getErrorMessage } from '../../lib/errors';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+  const emailRef = useRef<HTMLInputElement>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setFormError('');
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -29,7 +33,7 @@ export default function LoginPage() {
       router.push('/dashboard');
       router.refresh();
     } catch (error) {
-      setToast({ message: getErrorMessage(error, 'ログインに失敗しました。'), type: 'error' });
+      setFormError(getErrorMessage(error, 'メールアドレスまたはパスワードを確認してください。'));
       setLoading(false);
     }
   };
@@ -75,32 +79,44 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
+            {formError && <p role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">{formError}</p>}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">メールアドレス</label>
+              <label htmlFor="login-email" className="block text-sm font-semibold text-slate-700 mb-1">メールアドレス</label>
               <input
+                ref={emailRef}
+                id="login-email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setFormError(''); }}
                 required
+                autoComplete="email"
+                inputMode="email"
                 placeholder="name@example.com"
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded text-sm text-slate-800 focus:outline-none focus:border-[#0046ff]"
+                className="min-h-11 w-full px-3 py-2 bg-white border border-slate-300 rounded text-base text-slate-800 focus:outline-none focus:border-[#0046ff] focus:ring-2 focus:ring-blue-100"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">パスワード</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded text-sm text-slate-800 focus:outline-none focus:border-[#0046ff]"
-              />
+              <label htmlFor="login-password" className="block text-sm font-semibold text-slate-700 mb-1">パスワード</label>
+              <div className="flex">
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setFormError(''); }}
+                  required
+                  autoComplete="current-password"
+                  placeholder="パスワードを入力"
+                  className="min-h-11 min-w-0 flex-1 rounded-l border border-r-0 border-slate-300 bg-white px-3 py-2 text-base text-slate-800 focus:z-10 focus:border-[#0046ff] focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+                <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-pressed={showPassword} className="min-h-11 rounded-r border border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                  {showPassword ? '隠す' : '表示'}
+                </button>
+              </div>
             </div>
             <button
               type="submit"
               disabled={loading || oauthLoading}
-              className="w-full py-2 bg-[#0046ff] hover:bg-blue-700 text-white font-medium text-xs rounded transition-colors disabled:opacity-50 mt-2"
+              className="min-h-11 w-full py-2 bg-[#0046ff] hover:bg-blue-700 text-white font-semibold text-sm rounded transition-colors disabled:opacity-50 mt-2"
             >
               {loading ? '処理中...' : 'ログイン'}
             </button>

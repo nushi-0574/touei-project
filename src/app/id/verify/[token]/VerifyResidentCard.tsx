@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Header from '../../../components/Header';
+import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import { useLocale } from '../../../../lib/i18n';
 import { supabase } from '../../../../lib/supabase';
 
@@ -53,7 +54,7 @@ export default function VerifyResidentCard({ token }: { token: string }) {
           <p className="text-xs font-bold uppercase tracking-widest text-blue-700">Resident card verification</p>
           <h1 className="mt-2 text-xl font-bold">住民証確認</h1>
           {loading ? (
-            <p className="mt-6 text-sm text-slate-500">確認中...</p>
+            <ContentSkeleton rows={1} />
           ) : errorMessage ? (
             <p role="alert" className="mt-6 rounded border border-red-300 bg-red-50 p-4 text-sm text-red-800">{errorMessage}</p>
           ) : resident ? (

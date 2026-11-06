@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '../../components/Header';
 import Breadcrumbs from '../../components/Breadcrumbs';
+import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import { useLocale } from '../../../lib/i18n';
 import { supabase } from '../../../lib/supabase';
 
@@ -32,6 +33,9 @@ export default function AdminServicesPage() {
   const [userId, setUserId] = useState('');
   const [availableTabs, setAvailableTabs] = useState<WorkspaceTab[]>([]);
   const [tab, setTab] = useState<WorkspaceTab>('applications');
+  const [listSearch, setListSearch] = useState('');
+  const [listStatus, setListStatus] = useState('all');
+  const [listPage, setListPage] = useState(0);
   const [applications, setApplications] = useState<Application[]>([]);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [eventRegistrationCounts, setEventRegistrationCounts] = useState<Record<string, number>>({});
@@ -281,6 +285,68 @@ export default function AdminServicesPage() {
   }
 
   const inputClass = 'w-full rounded border border-slate-300 px-3 py-2 text-sm';
+  const normalizedSearch = listSearch.trim().toLocaleLowerCase();
+  const includesSearch = (...values: (string | null | undefined)[]) =>
+    !normalizedSearch || values.some((value) => value?.toLocaleLowerCase().includes(normalizedSearch));
+  const filteredApplications = applications.filter((item) =>
+    (listStatus === 'all' || item.status === listStatus)
+    && includesSearch(item.subject, item.application_type, item.user_id),
+  );
+  const filteredEvents = events.filter((item) =>
+    (listStatus === 'all' || item.status === listStatus)
+    && includesSearch(item.title, item.location),
+  );
+  const filteredPosts = posts.filter((item) =>
+    (listStatus === 'all' || item.status === listStatus)
+    && includesSearch(item.title, item.body, item.user_id),
+  );
+  const filteredReports = reports.filter((item) =>
+    (listStatus === 'all' || item.status === listStatus)
+    && includesSearch(item.reason, item.post_id, item.reporter_id),
+  );
+  const filteredTickets = tickets.filter((item) =>
+    (listStatus === 'all' || item.status === listStatus)
+    && includesSearch(item.subject, item.user_id),
+  );
+  const pageSize = 20;
+  const listForTab = tab === 'applications' ? filteredApplications
+    : tab === 'events' ? filteredEvents
+      : tab === 'community' ? filteredPosts
+        : tab === 'support' ? filteredTickets
+          : [];
+  const listPageCount = tab === 'community'
+    ? Math.max(1, Math.ceil(filteredPosts.length / pageSize), Math.ceil(filteredReports.length / pageSize))
+    : Math.max(1, Math.ceil(listForTab.length / pageSize));
+  const pagedApplications = filteredApplications.slice(listPage * pageSize, (listPage + 1) * pageSize);
+  const pagedEvents = filteredEvents.slice(listPage * pageSize, (listPage + 1) * pageSize);
+  const pagedPosts = filteredPosts.slice(listPage * pageSize, (listPage + 1) * pageSize);
+  const pagedReports = filteredReports.slice(listPage * pageSize, (listPage + 1) * pageSize);
+  const pagedTickets = filteredTickets.slice(listPage * pageSize, (listPage + 1) * pageSize);
+  const listStatusOptions: Record<WorkspaceTab, { value: string; label: string }[]> = {
+    applications: [
+      { value: 'submitted', label: '受付' }, { value: 'reviewing', label: '審査中' },
+      { value: 'needs_information', label: '追加情報待ち' }, { value: 'approved', label: '承認' },
+      { value: 'rejected', label: '却下' }, { value: 'withdrawn', label: '取り下げ' },
+    ],
+    events: [
+      { value: 'draft', label: '非公開' }, { value: 'published', label: '公開中' },
+      { value: 'cancelled', label: '中止' },
+    ],
+    notifications: [],
+    community: [
+      { value: 'pending', label: '審査待ち' }, { value: 'published', label: '公開' },
+      { value: 'hidden', label: '非表示' }, { value: 'open', label: '未確認報告' },
+      { value: 'reviewed', label: '確認済み報告' }, { value: 'dismissed', label: '対応不要' },
+    ],
+    support: [
+      { value: 'open', label: '未対応' }, { value: 'in_progress', label: '対応中' },
+      { value: 'waiting_for_resident', label: '住民の返信待ち' }, { value: 'resolved', label: '解決' },
+      { value: 'closed', label: '終了' },
+    ],
+  };
+  const filteredCount = tab === 'community'
+    ? `${filteredPosts.length} 件の投稿 · ${filteredReports.length} 件の報告`
+    : `${listForTab.length} 件`;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800">
@@ -300,20 +366,56 @@ export default function AdminServicesPage() {
         </div>
         {errorMessage && <p role="alert" className="mt-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">{errorMessage}</p>}
         {notice && <p role="status" className="mt-4 rounded border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-        {loading ? <p className="py-16 text-center text-sm text-slate-500">{t('loading')}</p> : (
+        {loading ? <ContentSkeleton /> : (
           <div className="mt-5 grid items-start gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
             <nav aria-label="業務管理メニュー" className="rounded border border-slate-200 bg-white p-2">
               {permissionTabs.filter((item) => availableTabs.includes(item.id)).map((item) => (
-                <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`mb-1 w-full rounded px-3 py-3 text-left text-sm font-semibold ${tab === item.id ? 'bg-slate-900 text-white' : 'hover:bg-slate-100'}`}>{item.label}</button>
+                <button key={item.id} type="button" aria-pressed={tab === item.id} onClick={() => { setTab(item.id); setListSearch(''); setListStatus('all'); setListPage(0); }} className={`mb-1 min-h-11 w-full rounded px-3 py-3 text-left text-sm font-semibold ${tab === item.id ? 'bg-slate-900 text-white' : 'hover:bg-slate-100'}`}>{item.label}</button>
               ))}
               <Link href="/admin" className="block rounded px-3 py-3 text-sm font-semibold hover:bg-slate-100">CMS・サイト設定</Link>
             </nav>
 
             <section aria-live="polite" className="min-w-0 space-y-4">
+              {tab !== 'notifications' && (
+                <div className="grid gap-3 rounded border border-slate-200 bg-white p-3 sm:grid-cols-[minmax(0,1fr)_200px_auto] sm:items-end">
+                  <label className="grid gap-1 text-xs font-semibold" htmlFor="operations-search">
+                    この一覧を検索
+                    <input
+                      id="operations-search"
+                      type="search"
+                      value={listSearch}
+                      onChange={(event) => { setListSearch(event.target.value); setListPage(0); }}
+                      className={inputClass}
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold" htmlFor="operations-status">
+                    状態で絞り込み
+                    <select
+                      id="operations-status"
+                      value={listStatus}
+                      onChange={(event) => { setListStatus(event.target.value); setListPage(0); }}
+                      className={inputClass}
+                    >
+                      <option value="all">すべての状態</option>
+                      {listStatusOptions[tab].map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="flex items-center justify-between gap-3 text-xs text-slate-600 sm:justify-end">
+                    <span className="min-w-0">{filteredCount}{tab === 'community' ? '' : ' · 対象は最新200件'}</span>
+                    <div className="flex gap-2">
+                      <button type="button" disabled={listPage === 0} onClick={() => setListPage((page) => page - 1)} className="min-h-10 rounded border border-slate-300 px-3 disabled:opacity-40">前へ</button>
+                      <span className="self-center whitespace-nowrap">{listPage + 1} / {listPageCount}</span>
+                      <button type="button" disabled={listPage + 1 >= listPageCount} onClick={() => setListPage((page) => page + 1)} className="min-h-10 rounded border border-slate-300 px-3 disabled:opacity-40">次へ</button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {tab === 'applications' && availableTabs.includes('applications') && (
                 <section className="rounded border border-slate-200 bg-white p-5">
                   <h2 className="text-lg font-bold">住民からの申請</h2>
-                  {applications.length === 0 ? <p className="mt-4 text-sm text-slate-500">{t('noRecords')}</p> : applications.map((application) => (
+                  {pagedApplications.length === 0 ? <p className="mt-4 text-sm text-slate-500">{t('noRecords')}</p> : pagedApplications.map((application) => (
                     <ApplicationRow key={application.id} application={application} onSave={updateApplication} />
                   ))}
                 </section>
@@ -356,7 +458,7 @@ export default function AdminServicesPage() {
                   <section className="rounded border border-slate-200 bg-white p-5">
                     <h2 className="text-lg font-bold">登録済みイベント</h2>
                     <div className="mt-3 divide-y divide-slate-100">
-                      {events.map((event) => (
+                      {pagedEvents.map((event) => (
                         <div key={event.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                           <div><p className="font-semibold">{event.title}</p><p className="text-xs text-slate-500">{new Date(event.starts_at).toLocaleString()} · {event.status} · 参加登録 {eventRegistrationCounts[event.id] ?? 0}{event.capacity ? ` / ${event.capacity}` : ''}</p></div>
                           <div className="flex gap-2">
@@ -365,7 +467,7 @@ export default function AdminServicesPage() {
                           </div>
                         </div>
                       ))}
-                      {!events.length && <p className="py-4 text-sm text-slate-500">{t('noRecords')}</p>}
+                      {!filteredEvents.length && <p className="py-4 text-sm text-slate-500">{t('noRecords')}</p>}
                     </div>
                   </section>
                 </>
@@ -403,7 +505,7 @@ export default function AdminServicesPage() {
                 <section className="rounded border border-slate-200 bg-white p-5">
                   <h2 className="text-lg font-bold">住民投稿の審査</h2>
                   <div className="mt-4 space-y-3">
-                    {posts.map((post) => (
+                    {pagedPosts.map((post) => (
                       <article key={post.id} className="rounded border border-slate-200 p-4">
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div><h3 className="font-semibold">{post.title}</h3><p className="text-xs text-slate-500">投稿者: {post.user_id} · {new Date(post.created_at).toLocaleString()}</p></div>
@@ -415,13 +517,13 @@ export default function AdminServicesPage() {
                         </div>
                       </article>
                     ))}
-                    {!posts.length && <p className="text-sm text-slate-500">{t('noRecords')}</p>}
+                    {!filteredPosts.length && <p className="text-sm text-slate-500">{t('noRecords')}</p>}
                   </div>
                 </section>
                 <section className="rounded border border-slate-200 bg-white p-5">
                   <h2 className="text-lg font-bold">住民からの報告</h2>
                   <div className="mt-4 divide-y divide-slate-100">
-                    {reports.map((report) => (
+                    {pagedReports.map((report) => (
                       <article key={report.id} className="py-3">
                         <p className="text-sm font-semibold">投稿ID: {report.post_id}</p>
                         <p className="mt-1 text-xs text-slate-500">報告者: {report.reporter_id} · {new Date(report.created_at).toLocaleString()} · {report.status}</p>
@@ -431,7 +533,7 @@ export default function AdminServicesPage() {
                         </div>
                       </article>
                     ))}
-                    {!reports.length && <p className="text-sm text-slate-500">{t('noRecords')}</p>}
+                    {!filteredReports.length && <p className="text-sm text-slate-500">{t('noRecords')}</p>}
                   </div>
                 </section>
                 </>
@@ -442,13 +544,13 @@ export default function AdminServicesPage() {
                   <h2 className="text-lg font-bold">住民からの問い合わせ</h2>
                   <div className="mt-4 grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
                     <div className="divide-y divide-slate-100">
-                      {tickets.map((ticket) => (
+                      {pagedTickets.map((ticket) => (
                         <button key={ticket.id} type="button" onClick={() => void openTicket(ticket.id)} className={`block w-full p-3 text-left hover:bg-slate-50 ${ticket.id === ticketId ? 'bg-blue-50' : ''}`}>
                           <span className="block text-sm font-semibold">{ticket.subject}</span>
                           <span className="mt-1 block text-xs text-slate-500">{ticket.status} · {ticket.priority} · {ticket.user_id.slice(0, 8)}</span>
                         </button>
                       ))}
-                      {!tickets.length && <p className="p-3 text-sm text-slate-500">{t('noRecords')}</p>}
+                      {!filteredTickets.length && <p className="p-3 text-sm text-slate-500">{t('noRecords')}</p>}
                     </div>
                     {ticketId && (
                       <div className="border-t border-slate-100 pt-3 xl:border-l xl:border-t-0 xl:pl-4">
