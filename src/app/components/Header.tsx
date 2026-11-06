@@ -23,8 +23,11 @@ export default function Header() {
   const [residentDisplayName, setResidentDisplayName] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPoliceStaff, setIsPoliceStaff] = useState(false);
+  const [isFireStaff, setIsFireStaff] = useState(false);
   const [isServiceStaff, setIsServiceStaff] = useState(false);
   const [isActiveResident, setIsActiveResident] = useState(false);
+  const [isPhoneStaff, setIsPhoneStaff] = useState(false);
+  const [canManagePhoneNumbers, setCanManagePhoneNumbers] = useState(false);
   const [emergencyAlerts, setEmergencyAlerts] = useState<EmergencyAlertBanner[]>([]);
   const isCurrent = (href: string) => href === '/'
     ? pathname === '/'
@@ -80,8 +83,11 @@ export default function Header() {
       setResidentDisplayName('');
       setIsAdmin(false);
       setIsPoliceStaff(false);
+      setIsFireStaff(false);
       setIsServiceStaff(false);
       setIsActiveResident(false);
+      setIsPhoneStaff(false);
+      setCanManagePhoneNumbers(false);
 
       if (!nextUser) return;
 
@@ -111,9 +117,18 @@ export default function Header() {
         setIsActiveResident(profile?.resident_status === 'active');
         setIsAdmin(profile?.is_admin === true);
         setIsPoliceStaff(profile?.is_police_staff === true);
+        setIsFireStaff(roles?.some((assignment) => assignment.role === 'fire') ?? false);
         const hasDepartmentRole = roles?.some((assignment) =>
           ['operations_bureau', 'administration_bureau', 'development_bureau'].includes(assignment.role)) ?? false;
         setIsServiceStaff(profile?.is_admin === true || (permissions?.length ?? 0) > 0 || hasDepartmentRole);
+        const phoneRoles = ['operations_bureau', 'administration_bureau', 'development_bureau', 'police', 'fire', 'corporate'];
+        const hasPhoneRole = roles?.some((assignment) => phoneRoles.includes(assignment.role)) ?? false;
+        const canManageNumbers = profile?.is_admin === true
+          || permissions?.some((assignment) => assignment.permission === 'manage_residents') === true
+          || roles?.some((assignment) => assignment.role === 'administration_bureau') === true;
+        setIsPhoneStaff(profile?.is_admin === true || profile?.is_police_staff === true || hasPhoneRole
+          || permissions?.some((assignment) => assignment.permission === 'manage_support') === true);
+        setCanManagePhoneNumbers(canManageNumbers);
       }
     };
 
@@ -131,8 +146,11 @@ export default function Header() {
         setResidentDisplayName('');
         setIsAdmin(false);
         setIsPoliceStaff(false);
+        setIsFireStaff(false);
         setIsServiceStaff(false);
         setIsActiveResident(false);
+        setIsPhoneStaff(false);
+        setCanManagePhoneNumbers(false);
         return;
       }
       window.setTimeout(() => void syncUser(session.user), 0);
@@ -167,10 +185,17 @@ export default function Header() {
           <Link href="/" aria-current={isCurrent('/') ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isCurrent('/') ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>{t('home')}</Link>
           <Link href={user ? '/toeiken/dashboard' : '/toeiken'} aria-current={isResidentCurrent ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isResidentCurrent ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>{t('residents')}</Link>
           {user && <Link href="/toeiken/messages" aria-current={isCurrent('/toeiken/messages') ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isCurrent('/toeiken/messages') ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>チャット</Link>}
+          {user && (isActiveResident || isPhoneStaff) && <Link href="/toeiken/phone" aria-current={isCurrent('/toeiken/phone') ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isCurrent('/toeiken/phone') ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>電話窓口</Link>}
+          {user && canManagePhoneNumbers && <Link href="/admin/phone-numbers" aria-current={isCurrent('/admin/phone-numbers') ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isCurrent('/admin/phone-numbers') ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>電話番号管理</Link>}
           <Link href="/toeiken/police-result" aria-current={isCurrent('/toeiken/police-result') ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isCurrent('/toeiken/police-result') ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>{t('examResults')}</Link>
           {(isPoliceStaff || isAdmin) && (
             <Link href="/police" aria-current={isCurrent('/police') ? 'page' : undefined} className={`font-semibold transition-colors ${isCurrent('/police') ? 'text-white underline underline-offset-8' : 'text-emerald-300 hover:text-emerald-200'}`}>
               {t('policePage')}
+            </Link>
+          )}
+          {(isFireStaff || isAdmin) && (
+            <Link href="/fire" aria-current={isCurrent('/fire') ? 'page' : undefined} className={`font-semibold transition-colors ${isCurrent('/fire') ? 'text-white underline underline-offset-8' : 'text-red-300 hover:text-red-200'}`}>
+              消防ページ
             </Link>
           )}
           
@@ -269,6 +294,26 @@ export default function Header() {
               チャット
             </Link>
           )}
+          {user && (isActiveResident || isPhoneStaff) && (
+            <Link
+              href="/toeiken/phone"
+              onClick={() => setIsOpen(false)}
+              aria-current={isCurrent('/toeiken/phone') ? 'page' : undefined}
+              className={`block min-h-11 py-3 border-b border-slate-700/50 ${isCurrent('/toeiken/phone') ? 'font-bold text-white' : 'text-slate-200 hover:text-white'}`}
+            >
+              電話窓口
+            </Link>
+          )}
+          {user && canManagePhoneNumbers && (
+            <Link
+              href="/admin/phone-numbers"
+              onClick={() => setIsOpen(false)}
+              aria-current={isCurrent('/admin/phone-numbers') ? 'page' : undefined}
+              className={`block min-h-11 py-3 font-semibold border-b border-slate-700/50 ${isCurrent('/admin/phone-numbers') ? 'text-white' : 'text-blue-300 hover:text-blue-200'}`}
+            >
+              電話番号管理
+            </Link>
+          )}
           <Link
             href="/toeiken/police-result"
             onClick={() => setIsOpen(false)}
@@ -285,6 +330,16 @@ export default function Header() {
               className={`block min-h-11 py-3 font-semibold border-b border-slate-700/50 ${isCurrent('/police') ? 'text-white' : 'text-emerald-300 hover:text-emerald-200'}`}
             >
               {t('policePage')}
+            </Link>
+          )}
+          {(isFireStaff || isAdmin) && (
+            <Link
+              href="/fire"
+              onClick={() => setIsOpen(false)}
+              aria-current={isCurrent('/fire') ? 'page' : undefined}
+              className={`block min-h-11 border-b border-slate-700/50 py-3 font-semibold ${isCurrent('/fire') ? 'text-white' : 'text-red-300'}`}
+            >
+              消防ページ
             </Link>
           )}
 

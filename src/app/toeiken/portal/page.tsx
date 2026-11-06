@@ -58,6 +58,7 @@ export default function ToeiPortalPage() {
     { href: '/toeiken/dashboard', title: t('myPage'), description: '登録情報の確認・変更を行います。' },
     { href: '/toeiken/services?tab=community', title: '住民掲示板', description: '住民同士で投稿・コメントをやり取りします。' },
     { href: '/toeiken/messages', title: '住民チャット', description: '住民同士の個人チャットやグループチャットを利用します。' },
+    { href: '/toeiken/phone', title: '電話窓口', description: '電話番号を申請し、各局の窓口へ音声通話で問い合わせます。' },
     { href: '/toeiken/services', title: t('serviceCenter'), description: t('serviceCenterDescription') },
     { href: '/map', title: t('map'), description: '公開中の施設・地域情報を地図上で確認します。' },
     { href: '/recruitment', title: t('recruitment'), description: '応募期間、応募条件、採用条件を確認し、募集へ応募します。' },

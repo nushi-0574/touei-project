@@ -15,8 +15,8 @@ const STAFF_ROLES = [
 export async function PUT(request: Request) {
   try {
     const authorized = await authorizeStaff(request, 'manage_staff');
-    if (!authorized?.isSuperAdmin) {
-      return Response.json({ error: '主任管理者のみロールを変更できます。' }, { status: 403 });
+    if (!authorized?.isAdmin) {
+      return Response.json({ error: '管理者のみ組織ロールを変更できます。' }, { status: 403 });
     }
 
     const body = await request.json() as { userId?: unknown; roles?: unknown };

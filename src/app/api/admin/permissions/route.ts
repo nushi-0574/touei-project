@@ -5,8 +5,8 @@ import { getErrorMessage } from '@/src/lib/errors';
 export async function PUT(request: Request) {
   try {
     const authorized = await authorizeStaff(request, 'manage_staff');
-    if (!authorized?.isSuperAdmin) {
-      return Response.json({ error: '主任管理者のみ職員権限を変更できます。' }, { status: 403 });
+    if (!authorized?.isAdmin) {
+      return Response.json({ error: '管理者のみ職員権限を変更できます。' }, { status: 403 });
     }
 
     const body = await request.json() as { userId?: unknown; permissions?: unknown };
@@ -21,15 +21,11 @@ export async function PUT(request: Request) {
     const admin = getSupabaseAdmin();
     const { data: target, error: targetError } = await admin
       .from('profiles')
-      .select('is_super_admin')
+      .select('id')
       .eq('id', body.userId)
       .maybeSingle();
     if (targetError) throw targetError;
     if (!target) return Response.json({ error: '対象のユーザーが見つかりません。' }, { status: 404 });
-    if (target.is_super_admin) {
-      return Response.json({ error: '主任管理者の権限は変更できません。' }, { status: 400 });
-    }
-
     if (permissions.length) {
       const { error: insertError } = await admin.from('staff_permissions').upsert(
         permissions.map((permission) => ({

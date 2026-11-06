@@ -7,18 +7,26 @@ import Header from '../components/Header';
 import Breadcrumbs from '../components/Breadcrumbs';
 import Toast from '../components/Toast';
 import { getErrorMessage } from '../../lib/errors';
+import LegalConsentField from '../components/LegalConsentField';
+import { getLegalConsentUrl } from '../../lib/legalConsent';
 
 export default function ToeikenAuthPage() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [loadingProvider, setLoadingProvider] = useState(false);
+  const [acceptedPolicies, setAcceptedPolicies] = useState(false);
+  const [consentError, setConsentError] = useState('');
 
   const handleGoogleAuth = async () => {
+    if (!acceptedPolicies) {
+      setConsentError('Googleで続行する前に、利用規約とプライバシーポリシーへの同意が必要です。');
+      return;
+    }
     setLoadingProvider(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/toeiken/dashboard`,
+          redirectTo: getLegalConsentUrl(window.location.origin, '/toeiken/dashboard'),
         },
       });
       if (error) throw error;
@@ -43,6 +51,15 @@ export default function ToeikenAuthPage() {
           </div>
 
           <div className="my-6 space-y-4">
+            <LegalConsentField
+              checked={acceptedPolicies}
+              onChange={(checked) => {
+                setAcceptedPolicies(checked);
+                setConsentError('');
+              }}
+              disabled={loadingProvider}
+              error={consentError}
+            />
             {/* Google認証ボタン */}
             <div className="border border-slate-200 rounded p-5 bg-slate-50/50 flex flex-col justify-between">
               <div>

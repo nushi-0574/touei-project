@@ -8,6 +8,8 @@ import Header from '../components/Header';
 import Toast from '../components/Toast';
 import { getErrorMessage } from '../../lib/errors';
 import { getAuthPageHref, getAuthRedirectPath } from '../../lib/authRedirect';
+import LegalConsentField from '../components/LegalConsentField';
+import { getLegalConsentUrl } from '../../lib/legalConsent';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -16,6 +18,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [formError, setFormError] = useState('');
+  const [acceptedPolicies, setAcceptedPolicies] = useState(false);
+  const [consentError, setConsentError] = useState('');
   const emailRef = useRef<HTMLInputElement>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const router = useRouter();
@@ -40,12 +44,19 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = async () => {
+    if (!acceptedPolicies) {
+      setConsentError('Googleで続行する前に、利用規約とプライバシーポリシーへの同意が必要です。');
+      return;
+    }
     setOauthLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}${getAuthRedirectPath(window.location.search)}`,
+          redirectTo: getLegalConsentUrl(
+            window.location.origin,
+            getAuthRedirectPath(window.location.search),
+          ),
         },
       });
       if (error) throw error;
@@ -65,6 +76,17 @@ export default function LoginPage() {
             <p className="text-xs text-slate-500 mt-1">東栄ポータルへのサインイン</p>
           </div>
 
+          <div className="mb-4">
+            <LegalConsentField
+              checked={acceptedPolicies}
+              onChange={(checked) => {
+                setAcceptedPolicies(checked);
+                setConsentError('');
+              }}
+              disabled={oauthLoading || loading}
+              error={consentError}
+            />
+          </div>
           <button
             onClick={handleGoogleLogin}
             type="button"

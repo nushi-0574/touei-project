@@ -15,6 +15,7 @@ import LoadingScreen from '../components/LoadingScreen';
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<{ is_admin?: boolean; is_police_staff?: boolean } | null>(null);
+  const [isFireStaff, setIsFireStaff] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const router = useRouter();
@@ -32,16 +33,26 @@ export default function DashboardPage() {
           return;
         }
 
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('is_admin, is_police_staff')
-          .eq('id', session.user.id)
-          .maybeSingle();
+        const [{ data, error }, { data: fireRole, error: fireRoleError }] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('is_admin, is_police_staff')
+            .eq('id', session.user.id)
+            .maybeSingle(),
+          supabase
+            .from('staff_roles')
+            .select('role')
+            .eq('user_id', session.user.id)
+            .eq('role', 'fire')
+            .maybeSingle(),
+        ]);
 
         if (error) throw error;
+        if (fireRoleError) throw fireRoleError;
         if (active) {
           setUser(session.user);
           setProfile(data);
+          setIsFireStaff(fireRole !== null);
         }
       } catch (error) {
         console.error('ユーザー情報の取得に失敗しました:', error);
@@ -161,6 +172,28 @@ export default function DashboardPage() {
                   className="block w-full text-center bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-medium py-2 rounded transition-colors"
                 >
                   警察職員ページを開く
+                </Link>
+              </div>
+            )}
+
+            {(isFireStaff || profile?.is_admin) && (
+              <div className="flex flex-col justify-between rounded border border-red-200 bg-white p-5 transition-colors hover:border-red-500">
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h2 className="text-base font-bold text-slate-900">消防職員メニュー</h2>
+                    <span className="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800">
+                      消防職員専用
+                    </span>
+                  </div>
+                  <p className="mb-6 text-xs leading-relaxed text-slate-600">
+                    消防専用ページとCommand systemの119番通報機能を利用できます。
+                  </p>
+                </div>
+                <Link
+                  href="/fire"
+                  className="block w-full rounded bg-red-700 py-2 text-center text-xs font-medium text-white transition-colors hover:bg-red-800"
+                >
+                  消防職員ページを開く
                 </Link>
               </div>
             )}

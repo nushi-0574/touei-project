@@ -39,10 +39,10 @@ export async function GET(request: Request) {
 
     const [{ data, error, count }, permissionsResult, rolesResult] = await Promise.all([
       query,
-      authorized.isSuperAdmin
+      authorized.isAdmin
         ? getSupabaseAdmin().from('staff_permissions').select('user_id, permission')
         : Promise.resolve({ data: [], error: null }),
-      authorized.isSuperAdmin
+      authorized.isAdmin
         ? getSupabaseAdmin().from('staff_roles').select('user_id, role')
         : Promise.resolve({ data: [], error: null }),
     ]);
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
       residents: data,
       permissions: permissionsResult.data,
       roles: [...rolesByUser].flatMap(([userId, assignedRoles]) => assignedRoles.map((role) => ({ user_id: userId, role }))),
-      isSuperAdmin: authorized.isSuperAdmin,
+      canManageStaff: authorized.isAdmin,
       total: count ?? 0,
       page,
     });

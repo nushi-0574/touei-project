@@ -116,7 +116,7 @@ export default function OperationsPage() {
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([]);
   const [metrics, setMetrics] = useState(emptyMetrics);
   const [userId, setUserId] = useState('');
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [canReadAuditLogs, setCanReadAuditLogs] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -138,7 +138,6 @@ export default function OperationsPage() {
     if (rolesError) throw rolesError;
 
     const isAdmin = profile?.is_admin === true;
-    const nextIsSuperAdmin = profile?.is_super_admin === true;
     const permissionSet = new Set((permissions ?? []).map((item) => item.permission as string));
     const roleSet = new Set((roles ?? []).map((item) => item.role as string));
     const canManageApplications = isAdmin || permissionSet.has('manage_applications') || roleSet.has('administration_bureau');
@@ -154,13 +153,13 @@ export default function OperationsPage() {
     if (canManageDocuments) nextTabs.push('documents');
     if (canManageProfile) nextTabs.push('profile');
     if (canManageEmergency) nextTabs.push('emergency');
-    if (nextIsSuperAdmin) nextTabs.push('audit');
+    if (isAdmin) nextTabs.push('audit');
     if (!canManageApplications && !canManageDocuments && !canManageProfile && !canManageEmergency && !canManageSupport) {
       throw new Error('この画面を利用する権限がありません。');
     }
 
     setUserId(session.user.id);
-    setIsSuperAdmin(nextIsSuperAdmin);
+    setCanReadAuditLogs(isAdmin);
     setAvailableTabs(nextTabs);
     if (!nextTabs.includes(tab)) setTab(nextTabs[0]);
 
@@ -177,7 +176,7 @@ export default function OperationsPage() {
       canManageEmergency
         ? supabase.from('emergency_alerts').select('*').order('created_at', { ascending: false }).limit(100)
         : Promise.resolve({ data: [], error: null }),
-      nextIsSuperAdmin
+      isAdmin
         ? supabase.from('staff_audit_logs').select('*').order('created_at', { ascending: false }).limit(100)
         : Promise.resolve({ data: [], error: null }),
       canManageApplications
@@ -459,7 +458,7 @@ export default function OperationsPage() {
                   </section>
                 </div>
               )}
-              {tab === 'audit' && isSuperAdmin && (
+              {tab === 'audit' && canReadAuditLogs && (
                 <section className="rounded border border-slate-200 bg-white p-5">
                   <h2 className="text-lg font-bold">操作監査ログ</h2>
                   <p className="mt-1 text-sm text-slate-600">記録には操作対象と変更項目名のみを保存し、個人情報の変更前後の値は含めません。</p>

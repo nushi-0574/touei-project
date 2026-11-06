@@ -35,7 +35,7 @@ export default function CookieBanner() {
     <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 text-white border-t border-slate-700 p-4 z-50 shadow-lg text-xs">
       <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
         <p className="text-slate-300 leading-relaxed">
-          当ポータルサイトでは、住民ログイン状態の維持（セッション管理）および利便性向上のためにCookieを使用しています。
+          当ポータルサイトでは、ログイン状態の維持、表示言語、プライバシー案内の確認状態をブラウザー内に保存します。
           詳細については「プライバシーポリシー」をご確認ください。
         </p>
         <button

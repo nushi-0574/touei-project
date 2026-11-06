@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import PoliceRadioVoice from './PoliceRadioVoice';
 
 const CHANNELS = ['県内', 'Ch1', 'CH2', '非常用', '教育'] as const;
 type RadioChannel = (typeof CHANNELS)[number];
@@ -118,7 +119,7 @@ export default function PoliceRadio() {
     <section className="overflow-hidden rounded border border-slate-300 bg-white shadow-sm">
       <div className="border-b border-slate-200 p-5 sm:p-6">
         <h2 className="text-lg font-bold text-slate-900">警察無線</h2>
-        <p className="mt-1 text-sm text-slate-600">チャンネルを選択して、警察職員間でテキスト連絡できます。</p>
+        <p className="mt-1 text-sm text-slate-600">チャンネルを選択して、警察職員間でテキスト・音声連絡できます。</p>
         <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="無線チャンネル">
           {CHANNELS.map((item) => (
             <button
@@ -138,6 +139,8 @@ export default function PoliceRadio() {
           ))}
         </div>
       </div>
+
+      <PoliceRadioVoice key={channel} channel={channel} />
 
       <div
         className="h-80 space-y-3 overflow-y-auto bg-slate-50 p-4"

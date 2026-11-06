@@ -1,3 +1,7 @@
+alter table public.police_exam_results
+  add column if not exists name text not null default '',
+  add column if not exists exam_name text not null default '';
+
 create or replace function public.lookup_police_exam_result(
   p_exam_number text,
   p_birth_date text

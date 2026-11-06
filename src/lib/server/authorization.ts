@@ -21,6 +21,7 @@ type StaffAuthorizationPermission = StaffPermission
   | 'manage_profile_changes'
   | 'manage_documents'
   | 'manage_emergency_alerts'
+  | 'manage_phone_numbers'
   | 'read_audit_logs';
 
 const permissionRole: Partial<Record<StaffAuthorizationPermission, string[]>> = {
@@ -29,16 +30,19 @@ const permissionRole: Partial<Record<StaffAuthorizationPermission, string[]>> = 
   manage_profile_changes: ['administration_bureau'],
   manage_documents: ['administration_bureau'],
   manage_emergency_alerts: ['operations_bureau'],
+  manage_phone_numbers: ['administration_bureau'],
 };
 
 const permissionFallbacks: Partial<Record<StaffAuthorizationPermission, StaffPermission[]>> = {
   manage_profile_changes: ['manage_residents'],
   manage_documents: ['manage_residents', 'manage_applications'],
   manage_emergency_alerts: ['manage_map'],
+  manage_phone_numbers: ['manage_residents'],
 };
 
 export type StaffAuthorization = {
   user: User;
+  isAdmin: boolean;
   isSuperAdmin: boolean;
 };
 
@@ -58,8 +62,7 @@ export async function authorizeStaff(
   if (profileError) throw profileError;
 
   if (profile?.is_admin) {
-    if (permission === 'read_audit_logs' && profile.is_super_admin !== true) return null;
-    return { user, isSuperAdmin: profile.is_super_admin === true };
+    return { user, isAdmin: true, isSuperAdmin: profile.is_super_admin === true };
   }
   if (permission === 'manage_staff' || permission === 'read_audit_logs') return null;
 
@@ -70,7 +73,7 @@ export async function authorizeStaff(
     .in('permission', [permission, ...(permissionFallbacks[permission] ?? [])])
     .maybeSingle();
   if (permissionError) throw permissionError;
-  if (assignment) return { user, isSuperAdmin: false };
+  if (assignment) return { user, isAdmin: false, isSuperAdmin: false };
 
   const requiredRoles = permissionRole[permission];
   if (!requiredRoles?.length) return null;
@@ -81,7 +84,7 @@ export async function authorizeStaff(
     .in('role', requiredRoles)
     .maybeSingle();
   if (roleError) throw roleError;
-  return role ? { user, isSuperAdmin: false } : null;
+  return role ? { user, isAdmin: false, isSuperAdmin: false } : null;
 }
 
 export function isStaffPermission(value: unknown): value is StaffPermission {

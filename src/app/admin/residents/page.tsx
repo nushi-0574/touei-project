@@ -59,7 +59,7 @@ export default function ResidentRegistryPage() {
   const [residents, setResidents] = useState<Resident[]>([]);
   const [assignedPermissions, setAssignedPermissions] = useState<Permission[]>([]);
   const [assignedRoles, setAssignedRoles] = useState<RoleAssignment[]>([]);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [canManageStaff, setCanManageStaff] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState('');
@@ -108,14 +108,14 @@ export default function ResidentRegistryPage() {
         residents: Resident[];
         permissions?: Permission[];
         roles?: RoleAssignment[];
-        isSuperAdmin?: boolean;
+        canManageStaff?: boolean;
         total?: number;
       };
       setResidents(payload.residents);
       setAssignedPermissions(payload.permissions ?? []);
       setAssignedRoles(payload.roles ?? []);
       setTotal(payload.total ?? 0);
-      setIsSuperAdmin(payload.isSuperAdmin === true);
+      setCanManageStaff(payload.canManageStaff === true);
       setPermissionsDraft(Object.fromEntries(
         payload.residents.map((resident) => [
           resident.id,
@@ -304,7 +304,7 @@ export default function ResidentRegistryPage() {
           </div>
           <div className="rounded border border-slate-200 bg-white p-4">
             <p className="text-xs text-slate-500">職員権限設定</p>
-            <p className="mt-1 text-sm font-bold">{isSuperAdmin ? '主任管理者' : '閲覧のみ'}</p>
+            <p className="mt-1 text-sm font-bold">{canManageStaff ? '編集可能' : '閲覧のみ'}</p>
           </div>
         </section>
 
@@ -454,12 +454,12 @@ export default function ResidentRegistryPage() {
               </div>
             </div>
 
-            {isSuperAdmin && (
+            {canManageStaff && (
               <div className="border-t border-slate-200 p-4">
                 <h2 className="font-bold text-slate-900">職員業務権限</h2>
                 <p className="mt-1 text-xs text-slate-500">チェックした担当業務だけを付与します。管理者権限・主任管理者権限はこの設定では変更できません。</p>
                 <div className="mt-4 space-y-3">
-                  {residents.filter((resident) => !resident.is_super_admin).map((resident) => (
+                  {residents.map((resident) => (
                     <details key={resident.id} className="rounded border border-slate-200 p-3">
                       <summary className="cursor-pointer text-sm font-semibold">{resident.full_name || resident.email || resident.id} — {(assignedPermissions.filter((item) => item.user_id === resident.id).length)} 権限</summary>
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -478,7 +478,7 @@ export default function ResidentRegistryPage() {
                 </div>
               </div>
             )}
-            {isSuperAdmin && (
+            {canManageStaff && (
               <div className="border-t border-slate-200 p-4">
                 <h2 className="font-bold text-slate-900">組織ロール</h2>
                 <p className="mt-1 text-xs text-slate-500">主任管理者・管理者の権限は維持したまま、複数の組織ロールを付与できます。一般ロールも他のロールと併用できます。</p>

@@ -8,12 +8,17 @@ import Header from '../components/Header';
 import Toast from '../components/Toast';
 import { getErrorMessage } from '../../lib/errors';
 import { getAuthPageHref, getAuthRedirectPath } from '../../lib/authRedirect';
+import LegalConsentField from '../components/LegalConsentField';
+import { getLegalConsentPath, getLegalConsentUrl, PRIVACY_POLICY_VERSION, TERMS_VERSION } from '../../lib/legalConsent';
 
 type FieldErrors = { email?: string; password?: string };
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [newsletterConsent, setNewsletterConsent] = useState(false);
+  const [acceptedPolicies, setAcceptedPolicies] = useState(false);
+  const [consentError, setConsentError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
@@ -33,6 +38,11 @@ export default function SignupPage() {
     setFieldErrors({});
 
     const nextErrors: FieldErrors = {};
+    if (!acceptedPolicies) {
+      setConsentError('利用規約とプライバシーポリシーへの同意が必要です。');
+      setFormError('アカウントを作成するには、利用規約とプライバシーポリシーへの同意が必要です。');
+      return;
+    }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       nextErrors.email = '有効なメールアドレスを入力してください。';
     }
@@ -54,13 +64,26 @@ export default function SignupPage() {
         email: email.trim(),
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}${getAuthRedirectPath(window.location.search)}`,
+          emailRedirectTo: getLegalConsentUrl(
+            window.location.origin,
+            getAuthRedirectPath(window.location.search),
+            { newsletter: String(newsletterConsent), newsletter_source: 'email' },
+          ),
+          data: {
+            newsletter_consent: newsletterConsent,
+            terms_version: TERMS_VERSION,
+            privacy_policy_version: PRIVACY_POLICY_VERSION,
+            terms_accepted_at: new Date().toISOString(),
+          },
         },
       });
       if (error) throw error;
 
       if (data.session) {
-        router.replace(getAuthRedirectPath(window.location.search));
+        router.replace(getLegalConsentPath(
+          getAuthRedirectPath(window.location.search),
+          { newsletter: String(newsletterConsent), newsletter_source: 'email' },
+        ));
         router.refresh();
       } else {
         setSuccess(true);
@@ -74,12 +97,20 @@ export default function SignupPage() {
   };
 
   const handleGoogleLogin = async () => {
+    if (!acceptedPolicies) {
+      setConsentError('Googleで続行する前に、利用規約とプライバシーポリシーへの同意が必要です。');
+      return;
+    }
     setOauthLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}${getAuthRedirectPath(window.location.search)}`,
+          redirectTo: getLegalConsentUrl(
+            window.location.origin,
+            getAuthRedirectPath(window.location.search),
+            { newsletter: String(newsletterConsent), newsletter_source: 'google' },
+          ),
         },
       });
       if (error) throw error;
@@ -97,7 +128,11 @@ export default function SignupPage() {
         type: 'signup',
         email: email.trim(),
         options: {
-          emailRedirectTo: `${window.location.origin}${getAuthRedirectPath(window.location.search)}`,
+          emailRedirectTo: getLegalConsentUrl(
+            window.location.origin,
+            getAuthRedirectPath(window.location.search),
+            { newsletter: String(newsletterConsent), newsletter_source: 'email' },
+          ),
         },
       });
       if (error) throw error;
@@ -157,6 +192,47 @@ export default function SignupPage() {
             </div>
           ) : (
             <>
+              <LegalConsentField
+                checked={acceptedPolicies}
+                onChange={(checked) => {
+                  setAcceptedPolicies(checked);
+                  setConsentError('');
+                  if (checked) setFormError('');
+                }}
+                disabled={loading || oauthLoading}
+                error={consentError}
+              />
+              <div className="mb-5 rounded border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">メールマガジンを受け取る</p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                      メールマガジンの受信を希望するか選択してください。任意設定で、登録条件ではありません。
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={newsletterConsent}
+                    aria-label="メールマガジンを受け取る"
+                    onClick={() => setNewsletterConsent((current) => !current)}
+                    disabled={loading || oauthLoading}
+                    className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      newsletterConsent ? 'bg-[#0046ff]' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                        newsletterConsent ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+                <p className="mt-2 text-right text-xs font-medium text-slate-600" aria-live="polite">
+                  {newsletterConsent ? '受け取る' : '受け取らない'}
+                </p>
+              </div>
+
               <button
                 onClick={handleGoogleLogin}
                 type="button"
@@ -232,7 +308,7 @@ export default function SignupPage() {
                 </div>
 
                 <p className="rounded bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
-                  氏名・住所・生年月日などは登録後にマイページから必要な範囲で登録できます。アカウント作成時にはメールアドレスとパスワードのみを使用します。
+                  氏名・住所・生年月日などは登録後に必要な範囲で登録できます。メールマガジンの受信希望は任意で、登録条件ではありません。
                 </p>
 
                 <button
