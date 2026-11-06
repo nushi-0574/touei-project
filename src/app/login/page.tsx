@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import Toast from '../components/Toast';
 import { getErrorMessage } from '../../lib/errors';
+import { getAuthPageHref, getAuthRedirectPath } from '../../lib/authRedirect';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -30,7 +31,7 @@ export default function LoginPage() {
         password,
       });
       if (error) throw error;
-      router.push('/dashboard');
+      router.replace(getAuthRedirectPath(window.location.search));
       router.refresh();
     } catch (error) {
       setFormError(getErrorMessage(error, 'メールアドレスまたはパスワードを確認してください。'));
@@ -44,7 +45,7 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: `${window.location.origin}${getAuthRedirectPath(window.location.search)}`,
         },
       });
       if (error) throw error;
@@ -124,7 +125,17 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-xs text-slate-500">
             アカウントをお持ちではありませんか？{' '}
-            <Link href="/signup" className="text-[#0046ff] font-medium hover:underline">
+            <Link
+              href="/signup"
+              onClick={(event) => {
+                const destination = getAuthPageHref('/signup', window.location.search);
+                if (destination !== '/signup') {
+                  event.preventDefault();
+                  router.push(destination);
+                }
+              }}
+              className="text-[#0046ff] font-medium hover:underline"
+            >
               新規登録
             </Link>
           </p>

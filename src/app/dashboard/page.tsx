@@ -79,7 +79,7 @@ export default function DashboardPage() {
             </span>
             <h2 className="text-base font-bold mt-1">東栄県ユーザーの方はこちら</h2>
             <p className="text-xs text-slate-300 mt-1">
-              DiscordアカウントまたはRobloxアカウントを使用した東栄県専用の登録・ログインが行えます。
+              Googleアカウントまたはメールアドレスで東栄アカウントを作成・ログインできます。Discord連携はログイン後に任意で設定できます。
             </p>
           </div>
           <Link
@@ -143,7 +143,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {profile?.is_police_staff && (
+            {(profile?.is_police_staff || profile?.is_admin) && (
               <div className="border border-emerald-200 rounded p-5 bg-white hover:border-emerald-500 transition-colors flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-2">

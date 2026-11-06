@@ -1,7 +1,6 @@
 import { authorizeStaff, isStaffPermission, STAFF_PERMISSIONS } from '@/src/lib/server/authorization';
 import { getSupabaseAdmin } from '@/src/lib/server/billing';
 import { getErrorMessage } from '@/src/lib/errors';
-import { isChiefAdministratorEmail } from '@/src/lib/administrator';
 
 export async function PUT(request: Request) {
   try {
@@ -22,12 +21,12 @@ export async function PUT(request: Request) {
     const admin = getSupabaseAdmin();
     const { data: target, error: targetError } = await admin
       .from('profiles')
-      .select('email, is_super_admin')
+      .select('is_super_admin')
       .eq('id', body.userId)
       .maybeSingle();
     if (targetError) throw targetError;
     if (!target) return Response.json({ error: '対象のユーザーが見つかりません。' }, { status: 404 });
-    if (target.is_super_admin || isChiefAdministratorEmail(target.email)) {
+    if (target.is_super_admin) {
       return Response.json({ error: '主任管理者の権限は変更できません。' }, { status: 400 });
     }
 

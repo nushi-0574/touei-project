@@ -22,6 +22,58 @@
   transform: translateY(0);
 }
 
+.loading-perimeter rect {
+  animation: loading-perimeter-travel 2.4s linear infinite;
+  filter: drop-shadow(0 0 5px rgb(0 70 255 / 45%));
+}
+
+@keyframes loading-perimeter-travel {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 15mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .print-document-root,
+  .print-document-root * {
+    visibility: visible;
+  }
+
+  .print-document-root {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    padding: 0;
+  }
+
+  .print-hidden {
+    display: none !important;
+  }
+
+  .print-document-root article {
+    min-height: 240mm;
+    margin: 0;
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

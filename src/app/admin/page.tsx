@@ -8,7 +8,6 @@ import Toast from '../components/Toast';
 import { supabase } from '../../lib/supabase';
 import { getErrorMessage } from '../../lib/errors';
 import { normalizeCommandSystemUrl } from '../../lib/commandSystem';
-import { isChiefAdministratorEmail } from '../../lib/administrator';
 
 type NewsItem = { id: number; date_str: string; title: string; link_url: string; category: string; };
 type ExamResultItem = { id: number; exam_number: string; name: string; birth_date: string; result: string; exam_name: string; };
@@ -33,6 +32,7 @@ type UserProfileItem = {
   is_admin: boolean;
   is_super_admin: boolean;
   is_police_staff: boolean;
+  police_org_role: '教官' | '学生' | '一般' | '指令';
   created_at: string;
 };
 
@@ -121,9 +121,8 @@ export default function AdminPage() {
         .maybeSingle();
 
       if (profileError) throw profileError;
-      const isChiefAdmin = isChiefAdministratorEmail(session.user.email);
-      setIsSuperAdmin(profile?.is_super_admin === true || isChiefAdmin);
-      if (!profile?.is_admin && !isChiefAdmin) {
+      setIsSuperAdmin(profile?.is_super_admin === true);
+      if (!profile?.is_admin) {
         setIsAuthenticated(false);
         return;
       }
@@ -138,7 +137,7 @@ export default function AdminPage() {
         supabase.from('main_menu_cards').select('*').order('display_order', { ascending: true }),
         supabase
           .from('profiles')
-          .select('id, email, full_name, is_admin, is_super_admin, is_police_staff, created_at')
+          .select('id, email, full_name, is_admin, is_super_admin, is_police_staff, police_org_role, created_at')
           .order('created_at', { ascending: false }),
       ]);
 
@@ -156,14 +155,7 @@ export default function AdminPage() {
       if (pagesRes.data) setCustomPages(pagesRes.data);
       if (cardsRes.data) setMenuCards(cardsRes.data);
       if (usersRes.data) {
-        setUserProfiles(usersRes.data.map((user) => {
-          const isChiefAdmin = isChiefAdministratorEmail(user.email);
-          return {
-            ...user,
-            is_admin: user.is_admin || isChiefAdmin,
-            is_super_admin: user.is_super_admin || isChiefAdmin,
-          };
-        }));
+        setUserProfiles(usersRes.data);
       }
 
     } catch (err) {
@@ -490,6 +482,30 @@ export default function AdminPage() {
       await checkUserAndFetchData();
     } catch (err: unknown) {
       setToast({ message: '権限変更に失敗しました: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
+    } finally {
+      setUpdatingRoleId(null);
+    }
+  };
+
+  const handleUpdatePoliceOrganizationRole = async (
+    user: UserProfileItem,
+    role: UserProfileItem['police_org_role'],
+  ) => {
+    if (!user.is_police_staff || role === user.police_org_role) return;
+    if (!confirm(`${user.email || user.full_name} の警察内役割を「${role}」に変更しますか？`)) return;
+
+    setUpdatingRoleId(user.id);
+    try {
+      const { error } = await supabase.rpc('set_police_organization_role', {
+        target_user_id: user.id,
+        new_role: role,
+      });
+      if (error) throw error;
+      setToast({ message: '警察内役割を更新しました。', type: 'success' });
+      await checkUserAndFetchData();
+    } catch (err: unknown) {
+      setToast({ message: '警察内役割を変更できませんでした: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
+      await checkUserAndFetchData();
     } finally {
       setUpdatingRoleId(null);
     }
@@ -976,12 +992,33 @@ export default function AdminPage() {
                         </span>
                         {user.is_police_staff && (
                           <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                            警察職員
+                            警察職員・{user.police_org_role}
                           </span>
                         )}
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                      {user.is_police_staff && (
+                        <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-700">
+                          警察内役割
+                          <select
+                            value={user.police_org_role}
+                            disabled={updatingRoleId === user.id}
+                            onChange={(event) => {
+                              const role = event.target.value;
+                              if (role === '教官' || role === '学生' || role === '一般' || role === '指令') {
+                                void handleUpdatePoliceOrganizationRole(user, role);
+                              }
+                            }}
+                            className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] disabled:opacity-50"
+                          >
+                            <option value="一般">一般</option>
+                            <option value="教官">教官</option>
+                            <option value="学生">学生</option>
+                            <option value="指令">指令</option>
+                          </select>
+                        </label>
+                      )}
                       <button
                         type="button"
                         disabled={user.is_super_admin || updatingRoleId === user.id}

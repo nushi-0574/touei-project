@@ -33,6 +33,32 @@ export default function LoadingScreen({ ariaHidden = false }: { ariaHidden?: boo
       aria-hidden={ariaHidden}
       className="fixed inset-0 z-[100] min-h-screen overflow-auto bg-slate-100 px-4 py-4 text-slate-800 sm:px-6"
     >
+      <svg
+        aria-hidden="true"
+        className="loading-perimeter pointer-events-none fixed inset-0 z-[101] h-full w-full"
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <linearGradient id="loading-perimeter-gradient">
+            <stop offset="0%" stopColor="#0046ff" stopOpacity="0" />
+            <stop offset="65%" stopColor="#0046ff" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#60a5fa" />
+          </linearGradient>
+        </defs>
+        <rect
+          x="2"
+          y="2"
+          width="calc(100% - 4px)"
+          height="calc(100% - 4px)"
+          rx="14"
+          pathLength="100"
+          fill="none"
+          stroke="url(#loading-perimeter-gradient)"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray="22 78"
+        />
+      </svg>
       <div className="mx-auto max-w-7xl animate-pulse">
         <div aria-hidden="true" className="mb-8 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4">
           <SkeletonBlock className="h-6 w-40" />

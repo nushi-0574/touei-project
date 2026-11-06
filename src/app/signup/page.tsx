@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import Toast from '../components/Toast';
 import { getErrorMessage } from '../../lib/errors';
+import { getAuthPageHref, getAuthRedirectPath } from '../../lib/authRedirect';
 
 type FieldErrors = { email?: string; password?: string };
 
@@ -52,11 +53,14 @@ export default function SignupPage() {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
+        options: {
+          emailRedirectTo: `${window.location.origin}${getAuthRedirectPath(window.location.search)}`,
+        },
       });
       if (error) throw error;
 
       if (data.session) {
-        router.replace('/dashboard');
+        router.replace(getAuthRedirectPath(window.location.search));
         router.refresh();
       } else {
         setSuccess(true);
@@ -75,7 +79,7 @@ export default function SignupPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: `${window.location.origin}${getAuthRedirectPath(window.location.search)}`,
         },
       });
       if (error) throw error;
@@ -89,7 +93,13 @@ export default function SignupPage() {
     setResendLoading(true);
     setResendNotice('');
     try {
-      const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim() });
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}${getAuthRedirectPath(window.location.search)}`,
+        },
+      });
       if (error) throw error;
       setResendNotice('確認メールを再送信しました。受信箱をご確認ください。');
     } catch (error) {
@@ -122,7 +132,17 @@ export default function SignupPage() {
                 <p role="status" className="rounded border border-blue-200 bg-white p-2 text-xs">{resendNotice}</p>
               )}
               <div className="flex flex-col gap-2 pt-2 sm:flex-row">
-                <Link href="/login" className="flex-1 rounded bg-[#0046ff] py-2 text-center text-xs font-semibold text-white">
+                <Link
+                  href="/login"
+                  onClick={(event) => {
+                    const destination = getAuthPageHref('/login', window.location.search);
+                    if (destination !== '/login') {
+                      event.preventDefault();
+                      router.push(destination);
+                    }
+                  }}
+                  className="flex-1 rounded bg-[#0046ff] py-2 text-center text-xs font-semibold text-white"
+                >
                   ログイン画面へ
                 </Link>
                 <button
@@ -229,7 +249,19 @@ export default function SignupPage() {
           {!success && (
             <p className="mt-6 text-center text-sm text-slate-600">
               すでにアカウントをお持ちですか？{' '}
-              <Link href="/login" className="font-semibold text-[#0046ff] hover:underline">ログイン</Link>
+              <Link
+                href="/login"
+                onClick={(event) => {
+                  const destination = getAuthPageHref('/login', window.location.search);
+                  if (destination !== '/login') {
+                    event.preventDefault();
+                    router.push(destination);
+                  }
+                }}
+                className="font-semibold text-[#0046ff] hover:underline"
+              >
+                ログイン
+              </Link>
             </p>
           )}
         </section>

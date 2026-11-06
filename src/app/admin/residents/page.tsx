@@ -25,6 +25,7 @@ type Permission = {
   user_id: string;
   permission: string;
 };
+type RoleAssignment = { user_id: string; role: string };
 
 const permissions = [
   ['manage_residents', '住民情報管理'],
@@ -37,6 +38,15 @@ const permissions = [
   ['manage_content', 'コンテンツ管理'],
   ['send_notifications', '住民通知配信'],
 ] as const;
+const staffRoles = [
+  ['operations_bureau', '運営局'],
+  ['administration_bureau', '管理局'],
+  ['development_bureau', '開発局'],
+  ['police', '警察'],
+  ['fire', '消防'],
+  ['corporate', '企業'],
+  ['general', '一般'],
+] as const;
 
 function getError(payload: unknown): string {
   if (typeof payload === 'object' && payload !== null && 'error' in payload && typeof payload.error === 'string') {
@@ -48,6 +58,7 @@ function getError(payload: unknown): string {
 export default function ResidentRegistryPage() {
   const [residents, setResidents] = useState<Resident[]>([]);
   const [assignedPermissions, setAssignedPermissions] = useState<Permission[]>([]);
+  const [assignedRoles, setAssignedRoles] = useState<RoleAssignment[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -60,7 +71,9 @@ export default function ResidentRegistryPage() {
   const [notice, setNotice] = useState('');
   const [inviteForm, setInviteForm] = useState({ email: '', full_name: '', address: '', birth_date: '' });
   const [permissionsDraft, setPermissionsDraft] = useState<Record<string, string[]>>({});
+  const [rolesDraft, setRolesDraft] = useState<Record<string, string[]>>({});
   const [savingPermissionsFor, setSavingPermissionsFor] = useState('');
+  const [savingRolesFor, setSavingRolesFor] = useState('');
   const [updatingResidentId, setUpdatingResidentId] = useState('');
   const router = useRouter();
 
@@ -94,11 +107,13 @@ export default function ResidentRegistryPage() {
       const payload = result as {
         residents: Resident[];
         permissions?: Permission[];
+        roles?: RoleAssignment[];
         isSuperAdmin?: boolean;
         total?: number;
       };
       setResidents(payload.residents);
       setAssignedPermissions(payload.permissions ?? []);
+      setAssignedRoles(payload.roles ?? []);
       setTotal(payload.total ?? 0);
       setIsSuperAdmin(payload.isSuperAdmin === true);
       setPermissionsDraft(Object.fromEntries(
@@ -107,6 +122,14 @@ export default function ResidentRegistryPage() {
           (payload.permissions ?? [])
             .filter((entry) => entry.user_id === resident.id)
             .map((entry) => entry.permission),
+        ]),
+      ));
+      setRolesDraft(Object.fromEntries(
+        payload.residents.map((resident) => [
+          resident.id,
+          (payload.roles ?? [])
+            .filter((entry) => entry.user_id === resident.id)
+            .map((entry) => entry.role),
         ]),
       ));
     } catch (error) {
@@ -172,6 +195,29 @@ export default function ResidentRegistryPage() {
     }
   }
 
+  async function saveRoles(userId: string) {
+    setSavingRolesFor(userId);
+    setErrorMessage('');
+    setNotice('');
+    try {
+      const token = await getAccessToken();
+      const response = await fetch('/api/admin/roles', {
+        method: 'PUT',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, roles: rolesDraft[userId] ?? [] }),
+      });
+      const result: unknown = await response.json();
+      if (!response.ok) throw new Error(getError(result));
+      setNotice('ユーザーロールを更新しました。');
+      await loadResidents();
+    } catch (error) {
+      console.error('ユーザーロールの保存に失敗しました:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'ユーザーロールを更新できませんでした。');
+    } finally {
+      setSavingRolesFor('');
+    }
+  }
+
   async function toggleResidentStatus(resident: Resident) {
     const status = resident.resident_status === 'active' ? 'inactive' : 'active';
     const action = status === 'active' ? '有効化' : '利用停止';
@@ -208,6 +254,22 @@ export default function ResidentRegistryPage() {
           : [...existing, permission],
       };
     });
+  }
+
+  function toggleRole(userId: string, role: string) {
+    setRolesDraft((current) => {
+      const existing = current[userId] ?? [];
+      return {
+        ...current,
+        [userId]: existing.includes(role)
+          ? existing.filter((value) => value !== role)
+          : [...existing, role],
+      };
+    });
+  }
+
+  function roleLabel(role: string): string {
+    return staffRoles.find(([key]) => key === role)?.[1] ?? role;
   }
 
   const activeCount = residents.filter((resident) => resident.resident_status === 'active').length;
@@ -318,7 +380,9 @@ export default function ResidentRegistryPage() {
                     <div className="flex flex-wrap gap-2">
                       {resident.is_super_admin && <span className="rounded bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-900">主任管理者</span>}
                       {resident.is_admin && !resident.is_super_admin && <span className="rounded bg-blue-100 px-2 py-1 text-[10px] font-semibold text-blue-900">管理者</span>}
-                      {resident.is_police_staff && <span className="rounded bg-emerald-100 px-2 py-1 text-[10px] font-semibold text-emerald-900">警察職員</span>}
+                      {(rolesDraft[resident.id] ?? []).map((role) => (
+                        <span key={role} className="rounded bg-violet-100 px-2 py-1 text-[10px] font-semibold text-violet-900">{roleLabel(role)}</span>
+                      ))}
                       <button
                         type="button"
                         disabled={updatingResidentId === resident.id || resident.is_super_admin}
@@ -354,7 +418,9 @@ export default function ResidentRegistryPage() {
                           <div className="mt-2 flex flex-wrap gap-1">
                             {resident.is_super_admin && <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">主任管理者</span>}
                             {resident.is_admin && !resident.is_super_admin && <span className="rounded bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-900">管理者</span>}
-                            {resident.is_police_staff && <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900">警察職員</span>}
+                            {(rolesDraft[resident.id] ?? []).map((role) => (
+                              <span key={role} className="rounded bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-900">{roleLabel(role)}</span>
+                            ))}
                           </div>
                         </td>
                         <td className="whitespace-nowrap px-4 py-4">{resident.birth_date || '未登録'}</td>
@@ -409,6 +475,41 @@ export default function ResidentRegistryPage() {
                       </button>
                     </details>
                   ))}
+                </div>
+              </div>
+            )}
+            {isSuperAdmin && (
+              <div className="border-t border-slate-200 p-4">
+                <h2 className="font-bold text-slate-900">組織ロール</h2>
+                <p className="mt-1 text-xs text-slate-500">主任管理者・管理者の権限は維持したまま、複数の組織ロールを付与できます。一般ロールも他のロールと併用できます。</p>
+                <div className="mt-4 space-y-3">
+                  {residents.map((resident) => {
+                    const selectedRoles = rolesDraft[resident.id] ?? [];
+                    const assignedRoleCount = assignedRoles.filter((role) => role.user_id === resident.id).length;
+                    return (
+                      <details key={resident.id} className="rounded border border-slate-200 p-3">
+                        <summary className="cursor-pointer text-sm font-semibold">
+                          {resident.full_name || resident.email || resident.id} — {assignedRoleCount} ロール
+                        </summary>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {staffRoles.map(([key, label]) => (
+                            <label key={key} className="flex items-center gap-2 text-xs">
+                              <input type="checkbox" checked={selectedRoles.includes(key)} onChange={() => toggleRole(resident.id, key)} />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={savingRolesFor === resident.id}
+                          onClick={() => void saveRoles(resident.id)}
+                          className="mt-3 rounded bg-violet-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                        >
+                          {savingRolesFor === resident.id ? '保存中...' : 'ロールを保存'}
+                        </button>
+                      </details>
+                    );
+                  })}
                 </div>
               </div>
             )}

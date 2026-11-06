@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { User } from '@supabase/supabase-js';
 import Link from 'next/link';
 import Header from '../../components/Header';
@@ -11,11 +11,15 @@ import { supabase } from '../../../lib/supabase';
 import { getDaysInMonth } from '../../../lib/dates';
 import { getErrorMessage } from '../../../lib/errors';
 import { useCurrentYear } from '../../../lib/useCurrentYear';
+import ResidentAvatar from '../../components/ResidentAvatar';
 
 type Profile = {
   id: string;
   email?: string | null;
   full_name?: string | null;
+  display_name?: string | null;
+  bio?: string | null;
+  avatar_path?: string | null;
   address?: string | null;
   birth_date?: string | null;
   discord_id?: string | null;
@@ -32,6 +36,11 @@ export default function DashboardPage() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const [fullName, setFullName] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [bio, setBio] = useState('');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('');
+  const avatarPreviewUrlRef = useRef('');
   const [address, setAddress] = useState('');
   const baseYear = useCurrentYear();
   const [birthYear, setBirthYear] = useState('');
@@ -43,6 +52,10 @@ export default function DashboardPage() {
   const days = birthYear && birthMonth
     ? Array.from({ length: getDaysInMonth(Number(birthYear), Number(birthMonth)) }, (_, i) => i + 1)
     : [];
+
+  useEffect(() => () => {
+    if (avatarPreviewUrlRef.current) URL.revokeObjectURL(avatarPreviewUrlRef.current);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -98,6 +111,8 @@ export default function DashboardPage() {
         setUser(session.user);
         setProfile(nextProfile);
         setFullName(nextProfile.full_name || '');
+        setDisplayName(nextProfile.display_name || nextProfile.full_name || '');
+        setBio(nextProfile.bio || '');
         setAddress(nextProfile.address || '');
         if (nextProfile.birth_date) {
           const [year, month, day] = nextProfile.birth_date.split('-');
@@ -124,6 +139,19 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!user) return;
 
+    if (!displayName.trim() || displayName.trim().length > 40) {
+      setToast({ message: '表示名は1〜40文字で入力してください。', type: 'error' });
+      return;
+    }
+    if (bio.length > 500) {
+      setToast({ message: '自己紹介は500文字以内で入力してください。', type: 'error' });
+      return;
+    }
+    if (avatarFile && (!['image/jpeg', 'image/png', 'image/webp'].includes(avatarFile.type) || avatarFile.size > 2 * 1024 * 1024)) {
+      setToast({ message: 'アイコン画像はJPEG・PNG・WebP形式で2MB以内にしてください。', type: 'error' });
+      return;
+    }
+
     if ([birthYear, birthMonth, birthDay].some(Boolean) && ![birthYear, birthMonth, birthDay].every(Boolean)) {
       setBirthDateError('生年月日を登録する場合は、年・月・日をすべて選択してください。');
       return;
@@ -138,13 +166,28 @@ export default function DashboardPage() {
     }
     setBirthDateError('');
     setSaving(true);
+    let uploadedAvatarPath: string | null = null;
     try {
+      let avatarPath = profile?.avatar_path ?? null;
+      if (avatarFile) {
+        const extension = avatarFile.type === 'image/jpeg' ? 'jpg' : avatarFile.type === 'image/png' ? 'png' : 'webp';
+        avatarPath = `${user.id}/${crypto.randomUUID()}.${extension}`;
+        const { error: uploadError } = await supabase.storage
+          .from('resident-avatars')
+          .upload(avatarPath, avatarFile, { contentType: avatarFile.type, cacheControl: '3600' });
+        if (uploadError) throw uploadError;
+        uploadedAvatarPath = avatarPath;
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
           email: user.email,
           full_name: fullName.trim(),
+          display_name: displayName.trim(),
+          bio: bio.trim(),
+          avatar_path: avatarPath,
           address: address.trim(),
           birth_date: birthDate || null,
         })
@@ -152,9 +195,25 @@ export default function DashboardPage() {
         .single();
       if (error) throw error;
       setProfile(data as Profile);
+      setAvatarFile(null);
+      if (avatarPreviewUrlRef.current) URL.revokeObjectURL(avatarPreviewUrlRef.current);
+      avatarPreviewUrlRef.current = '';
+      setAvatarPreviewUrl('');
+      if (uploadedAvatarPath && profile?.avatar_path) {
+        const { error: removeError } = await supabase.storage
+          .from('resident-avatars')
+          .remove([profile.avatar_path]);
+        if (removeError) console.error('以前のプロフィール画像を削除できませんでした:', removeError);
+      }
       setToast({ message: '住民登録情報を保存しました。', type: 'success' });
     } catch (error) {
       console.error('プロフィールの保存に失敗しました:', error);
+      if (uploadedAvatarPath) {
+        const { error: removeError } = await supabase.storage
+          .from('resident-avatars')
+          .remove([uploadedAvatarPath]);
+        if (removeError) console.error('保存に失敗したプロフィール画像を削除できませんでした:', removeError);
+      }
       setToast({ message: getErrorMessage(error, 'プロフィールの保存に失敗しました。'), type: 'error' });
     } finally {
       setSaving(false);
@@ -254,6 +313,61 @@ export default function DashboardPage() {
                 </h2>
 
                 <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                    <ResidentAvatar
+                      path={profile?.avatar_path}
+                      previewUrl={avatarPreviewUrl}
+                      name={displayName || fullName || '住民'}
+                      size="large"
+                    />
+                    <div className="space-y-2">
+                      <label htmlFor="resident-avatar" className="block font-bold text-slate-700">プロフィールアイコン</label>
+                      <input
+                        id="resident-avatar"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] ?? null;
+                          if (file && (file.size > 2 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type))) {
+                            setToast({ message: 'JPEG・PNG・WebP形式の2MB以内の画像を選択してください。', type: 'error' });
+                            event.target.value = '';
+                            return;
+                          }
+                          if (avatarPreviewUrlRef.current) URL.revokeObjectURL(avatarPreviewUrlRef.current);
+                          avatarPreviewUrlRef.current = file ? URL.createObjectURL(file) : '';
+                          setAvatarPreviewUrl(avatarPreviewUrlRef.current);
+                          setAvatarFile(file);
+                        }}
+                        className="block max-w-full text-xs text-slate-700 file:mr-3 file:rounded file:border-0 file:bg-slate-200 file:px-3 file:py-2 file:font-semibold"
+                      />
+                      <p className="text-[11px] text-slate-500">JPEG・PNG・WebP、2MB以内。プロフィール閲覧時にログイン中の住民へ表示されます。</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="resident-display-name" className="mb-1 block font-bold text-slate-700">表示名</label>
+                    <input
+                      id="resident-display-name"
+                      type="text"
+                      value={displayName}
+                      onChange={(event) => setDisplayName(event.target.value.slice(0, 40))}
+                      maxLength={40}
+                      required
+                      className="w-full rounded border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-500 sm:w-1/2"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">掲示板・チャット・ログイン表示に使われます。氏名とは別に設定できます。</p>
+                  </div>
+                  <div>
+                    <label htmlFor="resident-bio" className="mb-1 block font-bold text-slate-700">自己紹介（500字以内）</label>
+                    <textarea
+                      id="resident-bio"
+                      value={bio}
+                      onChange={(event) => setBio(event.target.value.slice(0, 500))}
+                      maxLength={500}
+                      rows={4}
+                      className="w-full rounded border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                    />
+                    <p className="mt-1 text-right text-[11px] text-slate-500">{bio.length} / 500</p>
+                  </div>
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">氏名</label>
                     <input
@@ -368,7 +482,7 @@ export default function DashboardPage() {
                     <div>
                       <p className="text-xs font-bold text-slate-800">Discord アカウント</p>
                       <p className="text-[11px] text-slate-500">
-                        {hasDiscordIdentity ? '連携済み（追加認証は不要です）' : '未連携'}
+                        {hasDiscordIdentity ? '連携済み' : '未連携（任意）'}
                       </p>
                     </div>
                   </div>
@@ -383,10 +497,13 @@ export default function DashboardPage() {
                       disabled={linkingDiscord}
                       className="px-3 py-1.5 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-semibold rounded shadow transition-colors disabled:opacity-50"
                     >
-                      {linkingDiscord ? '連携中...' : 'Discordを紐づける'}
+                      {linkingDiscord ? '連携中...' : 'Discordを任意で連携'}
                     </button>
                   )}
                 </div>
+                <p className="text-xs leading-relaxed text-slate-600">
+                  Discord連携は任意です。東栄アカウントへのログインはGoogleまたはメールアドレスで行います。
+                </p>
               </div>
             </div>
           )}

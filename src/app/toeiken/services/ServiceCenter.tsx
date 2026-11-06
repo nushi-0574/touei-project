@@ -10,6 +10,7 @@ import Breadcrumbs from '../../components/Breadcrumbs';
 import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import { useLocale } from '../../../lib/i18n';
 import { supabase } from '../../../lib/supabase';
+import ResidentAvatar from '../../components/ResidentAvatar';
 
 type ServiceApplication = {
   id: string;
@@ -48,8 +49,15 @@ type CommunityPost = {
 type CommunityComment = {
   id: string;
   post_id: string;
+  user_id: string;
   body: string;
   created_at: string;
+};
+type CommunityProfile = {
+  user_id: string;
+  display_name: string;
+  avatar_path: string | null;
+  bio: string;
 };
 type SupportTicket = {
   id: string;
@@ -65,8 +73,70 @@ type SupportMessage = {
   is_staff_reply: boolean;
   created_at: string;
 };
+type ProfileData = {
+  full_name: string | null;
+  address: string | null;
+  birth_date: string | null;
+  preferred_locale: string;
+};
+type ProfileChangeRequest = {
+  id: string;
+  requested_changes: Record<string, string>;
+  reason: string;
+  status: string;
+  staff_response: string | null;
+  created_at: string;
+};
+type ResidentDocumentRequest = {
+  id: string;
+  document_type: 'residence_certificate' | 'resident_status_certificate';
+  purpose: string;
+  status: string;
+  staff_response: string | null;
+  document_number: string | null;
+  verification_token: string;
+  issued_at: string | null;
+  created_at: string;
+};
+type NotificationPreference = {
+  category: 'service' | 'news' | 'emergency' | 'community' | 'account';
+  enabled: boolean;
+};
+const supportCategoryKeys = [
+  'operations_question',
+  'operations_proposal',
+  'development_question',
+  'development_proposal',
+  'appeal',
+] as const;
+type SupportCategory = (typeof supportCategoryKeys)[number];
 
-type Tab = 'applications' | 'events' | 'notifications' | 'community' | 'support' | 'id';
+function isSupportCategory(value: string): value is SupportCategory {
+  return supportCategoryKeys.some((category) => category === value);
+}
+
+type Tab = 'applications' | 'events' | 'notifications' | 'community' | 'support' | 'id' | 'documents' | 'profile';
+type ResidentApplicationForm = {
+  discordName: string;
+  robloxUsername: string;
+  robloxDisplayName: string;
+  birthDate: string;
+  occupation: string;
+  phoneNumber: string;
+  address: string;
+  housingType: string;
+};
+
+const emptyResidentApplicationForm: ResidentApplicationForm = {
+  discordName: '',
+  robloxUsername: '',
+  robloxDisplayName: '',
+  birthDate: '',
+  occupation: '',
+  phoneNumber: '030-///-///',
+  address: '',
+  housingType: '',
+};
 
 const tabKeys: { id: Tab; label: string }[] = [
   { id: 'applications', label: 'applications' },
@@ -74,6 +144,8 @@ const tabKeys: { id: Tab; label: string }[] = [
   { id: 'notifications', label: 'notifications' },
   { id: 'community', label: 'community' },
   { id: 'support', label: 'support' },
+  { id: 'documents', label: 'officialDocuments' },
+  { id: 'profile', label: 'profileChanges' },
   { id: 'id', label: 'digitalId' },
 ];
 
@@ -99,21 +171,34 @@ export default function ServiceCenter() {
   const [notice, setNotice] = useState('');
   const [applications, setApplications] = useState<ServiceApplication[]>([]);
   const [notifications, setNotifications] = useState<ResidentNotification[]>([]);
+  const [notificationPreferences, setNotificationPreferences] = useState<Record<NotificationPreference['category'], boolean>>({
+    service: true,
+    news: true,
+    emergency: true,
+    community: true,
+    account: true,
+  });
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [profileChangeRequests, setProfileChangeRequests] = useState<ProfileChangeRequest[]>([]);
+  const [documentRequests, setDocumentRequests] = useState<ResidentDocumentRequest[]>([]);
   const [events, setEvents] = useState<PublicEvent[]>([]);
   const [registrations, setRegistrations] = useState<string[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [comments, setComments] = useState<CommunityComment[]>([]);
+  const [communityProfiles, setCommunityProfiles] = useState<Record<string, CommunityProfile>>({});
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState('');
   const [ticketMessages, setTicketMessages] = useState<SupportMessage[]>([]);
   const [cardToken, setCardToken] = useState('');
   const [residentName, setResidentName] = useState('');
   const [origin, setOrigin] = useState('');
-  const [applicationForm, setApplicationForm] = useState({ application_type: 'resident_service', subject: '', details: '' });
+  const [applicationForm, setApplicationForm] = useState<ResidentApplicationForm>(emptyResidentApplicationForm);
+  const [profileChangeForm, setProfileChangeForm] = useState({ full_name: '', address: '', birth_date: '', preferred_locale: 'ja', reason: '' });
+  const [documentForm, setDocumentForm] = useState<{ document_type: ResidentDocumentRequest['document_type']; purpose: string }>({ document_type: 'residence_certificate', purpose: '' });
   const [postForm, setPostForm] = useState({ title: '', body: '' });
   const [commentForm, setCommentForm] = useState({ postId: '', body: '' });
   const [reportForm, setReportForm] = useState({ postId: '', reason: '' });
-  const [ticketForm, setTicketForm] = useState({ subject: '', body: '' });
+  const [ticketForm, setTicketForm] = useState<{ category: SupportCategory | 'general'; subject: string; body: string }>({ category: 'general', subject: '', body: '' });
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -127,13 +212,34 @@ export default function ServiceCenter() {
       supabase.from('events').select('id, title, description, location, starts_at, ends_at, capacity').eq('status', 'published').gte('ends_at', new Date().toISOString()).order('starts_at').limit(50),
       supabase.from('event_registrations').select('event_id, status').eq('user_id', currentUser.id).eq('status', 'registered'),
       supabase.from('community_posts').select('id, user_id, title, body, status, created_at').or(`status.eq.published,user_id.eq.${currentUser.id}`).order('created_at', { ascending: false }).limit(50),
-      supabase.from('community_comments').select('id, post_id, body, created_at').eq('status', 'published').order('created_at').limit(200),
+      supabase.from('community_comments').select('id, post_id, user_id, body, created_at').eq('status', 'published').order('created_at').limit(200),
       supabase.from('support_tickets').select('id, subject, category, status, created_at').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(50),
       supabase.from('resident_cards').select('verification_token').eq('user_id', currentUser.id).maybeSingle(),
-      supabase.from('profiles').select('full_name').eq('id', currentUser.id).maybeSingle(),
+      supabase.from('profiles').select('full_name, address, birth_date, preferred_locale').eq('id', currentUser.id).maybeSingle(),
+      supabase.from('profile_change_requests').select('id, requested_changes, reason, status, staff_response, created_at').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(50),
+      supabase.from('resident_document_requests').select('id, document_type, purpose, status, staff_response, document_number, verification_token, issued_at, created_at').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(50),
+      supabase.from('resident_notification_preferences').select('category, enabled').eq('user_id', currentUser.id),
     ]);
     const failed = results.find((result) => result.error);
     if (failed?.error) throw failed.error;
+    const communityUserIds = [...new Set([
+      currentUser.id,
+      ...(results[4].data ?? []).map((post) => post.user_id),
+      ...(results[5].data ?? []).map((comment) => comment.user_id),
+    ])];
+    const communityProfileResults = await Promise.all(
+      Array.from({ length: Math.ceil(communityUserIds.length / 100) }, (_, index) =>
+        supabase.rpc('get_resident_public_profiles', {
+          target_user_ids: communityUserIds.slice(index * 100, (index + 1) * 100),
+        }),
+      ),
+    );
+    const failedProfileResult = communityProfileResults.find((result) => result.error);
+    if (failedProfileResult?.error) throw failedProfileResult.error;
+    setCommunityProfiles(Object.fromEntries(
+      communityProfileResults.flatMap((result) => (result.data ?? []) as CommunityProfile[])
+        .map((profile) => [profile.user_id, profile]),
+    ));
     setApplications(results[0].data ?? []);
     setNotifications(results[1].data ?? []);
     setEvents(results[2].data ?? []);
@@ -143,6 +249,21 @@ export default function ServiceCenter() {
     setTickets(results[6].data ?? []);
     setCardToken(results[7].data?.verification_token ?? '');
     setResidentName(results[8].data?.full_name ?? '');
+    const residentProfile = results[8].data as ProfileData | null;
+    setProfileData(residentProfile);
+    setProfileChangeForm((current) => ({
+      ...current,
+      full_name: residentProfile?.full_name ?? '',
+      address: residentProfile?.address ?? '',
+      birth_date: residentProfile?.birth_date ?? '',
+      preferred_locale: residentProfile?.preferred_locale ?? 'ja',
+    }));
+    setProfileChangeRequests((results[9].data ?? []) as ProfileChangeRequest[]);
+    setDocumentRequests((results[10].data ?? []) as ResidentDocumentRequest[]);
+    setNotificationPreferences((current) => ({
+      ...current,
+      ...Object.fromEntries((results[11].data ?? []).map((item) => [item.category, item.enabled])),
+    }));
   }, []);
 
   useEffect(() => {
@@ -154,6 +275,20 @@ export default function ServiceCenter() {
         if (!session) {
           router.replace('/toeiken');
           return;
+        }
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        if (profileError) throw profileError;
+        if (!profile) {
+          const { error: insertError } = await supabase.from('profiles').insert({
+            id: session.user.id,
+            email: session.user.email,
+            full_name: session.user.user_metadata.full_name || '',
+          });
+          if (insertError) throw insertError;
         }
         await loadData(session.user);
         if (active) {
@@ -174,6 +309,40 @@ export default function ServiceCenter() {
     };
   }, [loadData, router]);
 
+  useEffect(() => {
+    if (!loading && window.location.hash === '#new-application') {
+      document.getElementById('new-application')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [loading]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const requestedTab = params.get('tab');
+      if (requestedTab === 'documents' || requestedTab === 'profile') {
+        setTab(requestedTab);
+        return;
+      }
+      if (requestedTab === 'community') {
+        setTab('community');
+        return;
+      }
+      if (requestedTab !== 'support') return;
+      setTab('support');
+      const requestedCategory = params.get('category');
+      if (requestedCategory && isSupportCategory(requestedCategory)) {
+        setTicketForm((current) => ({ ...current, category: requestedCategory }));
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!loading && tab === 'support' && window.location.hash === '#contact-form') {
+      document.getElementById('contact-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [loading, tab]);
+
   async function refresh() {
     if (!user) return;
     await loadData(user);
@@ -182,22 +351,140 @@ export default function ServiceCenter() {
   async function submitApplication(event: React.FormEvent) {
     event.preventDefault();
     if (!user) return;
+    const requiredValues = [
+      applicationForm.discordName,
+      applicationForm.robloxUsername,
+      applicationForm.robloxDisplayName,
+      applicationForm.birthDate,
+      applicationForm.occupation,
+    ];
+    if (requiredValues.some((value) => !value.trim())) {
+      setErrorMessage(t('requiredApplicationFields'));
+      return;
+    }
     setBusy(true);
     setErrorMessage('');
     setNotice('');
     try {
       const { error } = await supabase.from('service_applications').insert({
         user_id: user.id,
-        application_type: applicationForm.application_type,
-        subject: applicationForm.subject.trim(),
-        details: { description: applicationForm.details.trim() },
+        application_type: 'resident_service',
+        subject: '住民登録申請',
+        details: {
+          application_kind: 'resident_registration',
+          discord_name: applicationForm.discordName.trim(),
+          roblox_username: applicationForm.robloxUsername.trim(),
+          roblox_display_name: applicationForm.robloxDisplayName.trim(),
+          birth_date: applicationForm.birthDate,
+          occupation: applicationForm.occupation.trim(),
+          phone_number: applicationForm.phoneNumber.trim(),
+          address: applicationForm.address.trim(),
+          housing_type: applicationForm.housingType,
+        },
       });
       if (error) throw error;
-      setApplicationForm({ application_type: 'resident_service', subject: '', details: '' });
+      setApplicationForm(emptyResidentApplicationForm);
       setNotice(t('applicationSubmitted'));
       await refresh();
     } catch (error) {
       console.error('行政申請を送信できませんでした:', error);
+      setErrorMessage(messageOf(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitProfileChange(event: React.FormEvent) {
+    event.preventDefault();
+    if (!user || !profileData) return;
+    if (profileChangeForm.full_name.trim().length < 1 || profileChangeForm.full_name.length > 200
+      || profileChangeForm.address.length > 500 || profileChangeForm.reason.trim().length < 1
+      || profileChangeForm.reason.length > 2000) {
+      setErrorMessage('氏名・住所・申請理由を確認してください。');
+      return;
+    }
+    if (profileChangeForm.birth_date) {
+      const date = new Date(`${profileChangeForm.birth_date}T00:00:00.000Z`);
+      if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== profileChangeForm.birth_date) {
+        setErrorMessage('生年月日を正しく入力してください。');
+        return;
+      }
+    }
+    if (!['ja', 'en', 'zh-CN', 'ko'].includes(profileChangeForm.preferred_locale)) {
+      setErrorMessage('表示言語を選択してください。');
+      return;
+    }
+    const requestedChanges: Record<string, string> = {};
+    if (profileChangeForm.full_name.trim() !== (profileData.full_name ?? '')) requestedChanges.full_name = profileChangeForm.full_name.trim();
+    if (profileChangeForm.address.trim() !== (profileData.address ?? '')) requestedChanges.address = profileChangeForm.address.trim();
+    if (profileChangeForm.birth_date !== (profileData.birth_date ?? '')) requestedChanges.birth_date = profileChangeForm.birth_date;
+    if (profileChangeForm.preferred_locale !== profileData.preferred_locale) requestedChanges.preferred_locale = profileChangeForm.preferred_locale;
+    if (!Object.keys(requestedChanges).length) {
+      setErrorMessage('変更する項目がありません。');
+      return;
+    }
+
+    setBusy(true);
+    setErrorMessage('');
+    setNotice('');
+    try {
+      const { error } = await supabase.from('profile_change_requests').insert({
+        user_id: user.id,
+        requested_changes: requestedChanges,
+        reason: profileChangeForm.reason.trim(),
+      });
+      if (error) throw error;
+      setProfileChangeForm((current) => ({ ...current, reason: '' }));
+      setNotice('住民情報の変更申請を受け付けました。');
+      await refresh();
+    } catch (error) {
+      console.error('住民情報変更申請を送信できませんでした:', error);
+      setErrorMessage(messageOf(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitDocumentRequest(event: React.FormEvent) {
+    event.preventDefault();
+    if (!user) return;
+    setBusy(true);
+    setErrorMessage('');
+    setNotice('');
+    try {
+      const { error } = await supabase.from('resident_document_requests').insert({
+        user_id: user.id,
+        document_type: documentForm.document_type,
+        purpose: documentForm.purpose.trim(),
+      });
+      if (error) throw error;
+      setDocumentForm((current) => ({ ...current, purpose: '' }));
+      setNotice('公的書類の発行申請を受け付けました。');
+      await refresh();
+    } catch (error) {
+      console.error('公的書類申請を送信できませんでした:', error);
+      setErrorMessage(messageOf(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateNotificationPreference(category: NotificationPreference['category'], enabled: boolean) {
+    if (!user) return;
+    setBusy(true);
+    setErrorMessage('');
+    try {
+      const { error } = await supabase.from('resident_notification_preferences').upsert({
+        user_id: user.id,
+        category,
+        enabled,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,category' });
+      if (error) throw error;
+      setNotificationPreferences((current) => ({ ...current, [category]: enabled }));
+      setNotice('通知設定を保存しました。');
+    } catch (error) {
+      console.error('通知設定を保存できませんでした:', error);
       setErrorMessage(messageOf(error));
     } finally {
       setBusy(false);
@@ -317,6 +604,7 @@ export default function ServiceCenter() {
       const { data: ticket, error } = await supabase.from('support_tickets').insert({
         user_id: user.id,
         subject: ticketForm.subject.trim(),
+        category: ticketForm.category,
       }).select('id').single();
       if (error) throw error;
       const { error: messageError } = await supabase.from('support_messages').insert({
@@ -329,7 +617,7 @@ export default function ServiceCenter() {
         console.error('問い合わせは作成されましたが本文を保存できませんでした:', messageError);
         throw new Error('問い合わせは作成されましたが、本文を保存できませんでした。お問い合わせ一覧から追記してください。');
       }
-      setTicketForm({ subject: '', body: '' });
+      setTicketForm({ category: 'general', subject: '', body: '' });
       setNotice(t('submit'));
       await refresh();
     } catch (error) {
@@ -424,7 +712,9 @@ export default function ServiceCenter() {
                       : item.id === 'events' ? events.length
                         : item.id === 'notifications' ? notifications.filter((notification) => !notification.read_at).length
                           : item.id === 'community' ? posts.length
-                            : item.id === 'support' ? tickets.length : ''}
+                            : item.id === 'support' ? tickets.length
+                              : item.id === 'documents' ? documentRequests.length
+                                : item.id === 'profile' ? profileChangeRequests.length : ''}
                   </span>
                 </button>
               ))}
@@ -434,24 +724,77 @@ export default function ServiceCenter() {
             <section aria-live="polite" className="min-w-0 space-y-5">
               {tab === 'applications' && (
                 <>
-                  <section className="rounded border border-slate-200 bg-white p-5">
-                    <h2 className="text-lg font-bold">{t('newApplication')}</h2>
-                    <form onSubmit={submitApplication} className="mt-4 grid gap-3">
-                      <label className="grid gap-1 text-sm font-medium">{t('applicationType')}
-                        <select value={applicationForm.application_type} onChange={(event) => setApplicationForm({ ...applicationForm, application_type: event.target.value })} className={inputClass}>
-                          <option value="resident_service">{t('applications')}</option>
-                          <option value="permit">許可・届出</option>
-                          <option value="other">その他</option>
-                        </select>
-                      </label>
-                      <label className="grid gap-1 text-sm font-medium">{t('subject')}
-                        <input required maxLength={200} value={applicationForm.subject} onChange={(event) => setApplicationForm({ ...applicationForm, subject: event.target.value })} className={inputClass} />
-                      </label>
-                      <label className="grid gap-1 text-sm font-medium">{t('details')}
-                        <textarea required maxLength={10000} rows={5} value={applicationForm.details} onChange={(event) => setApplicationForm({ ...applicationForm, details: event.target.value })} className={inputClass} />
-                      </label>
-                      <div><button disabled={busy} className={buttonClass}>{busy ? t('loading') : t('submit')}</button></div>
-                    </form>
+                  <section id="new-application" className="scroll-mt-24 rounded border border-slate-200 bg-white p-5">
+                    <h2 className="text-lg font-bold">{t('residentRegistrationApplication')}</h2>
+                    <p className="mt-2 text-sm text-slate-600">{t('applicationFormNote')}</p>
+                    <div className="mt-4 lg:hidden">
+                      <p role="status" className="rounded border border-amber-300 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">
+                        {t('applicationPcOnly')}
+                      </p>
+                    </div>
+                    <div className="mt-4 hidden gap-6 lg:grid lg:grid-cols-2">
+                      <form onSubmit={submitApplication} className="grid content-start gap-4">
+                        <label className="grid gap-1 text-sm font-medium">{t('discordName')}
+                          <input required maxLength={100} value={applicationForm.discordName} onChange={(event) => setApplicationForm({ ...applicationForm, discordName: event.target.value })} className={inputClass} />
+                          <span className="text-xs font-normal text-slate-600">{t('discordNameHint')}</span>
+                        </label>
+                        <label className="grid gap-1 text-sm font-medium">{t('robloxUsername')}
+                          <input required maxLength={100} value={applicationForm.robloxUsername} onChange={(event) => setApplicationForm({ ...applicationForm, robloxUsername: event.target.value })} className={inputClass} />
+                        </label>
+                        <label className="grid gap-1 text-sm font-medium">{t('robloxDisplayName')}
+                          <input required maxLength={100} value={applicationForm.robloxDisplayName} onChange={(event) => setApplicationForm({ ...applicationForm, robloxDisplayName: event.target.value })} className={inputClass} />
+                        </label>
+                        <label className="grid gap-1 text-sm font-medium">{t('dateOfBirth')}
+                          <input required type="date" value={applicationForm.birthDate} onChange={(event) => setApplicationForm({ ...applicationForm, birthDate: event.target.value })} className={inputClass} />
+                        </label>
+                        <label className="grid gap-1 text-sm font-medium">{t('occupation')}
+                          <input required maxLength={200} value={applicationForm.occupation} onChange={(event) => setApplicationForm({ ...applicationForm, occupation: event.target.value })} className={inputClass} />
+                          <span className="text-xs font-normal text-slate-600">{t('qualifiedOccupationHint')}</span>
+                        </label>
+                        <label className="grid gap-1 text-sm font-medium">{t('desiredPhoneNumber')}
+                          <input maxLength={30} value={applicationForm.phoneNumber} onChange={(event) => setApplicationForm({ ...applicationForm, phoneNumber: event.target.value })} className={inputClass} />
+                          <span className="text-xs font-normal text-slate-600">{t('phoneNumberHint')}</span>
+                        </label>
+                        <label className="grid gap-1 text-sm font-medium">{t('desiredAddress')}
+                          <input maxLength={300} value={applicationForm.address} onChange={(event) => setApplicationForm({ ...applicationForm, address: event.target.value })} className={inputClass} />
+                          <span className="text-xs font-normal text-slate-600">{t('addressInsidePrefectureHint')}</span>
+                        </label>
+                        <label className="grid gap-1 text-sm font-medium">{t('desiredHousingType')}
+                          <select value={applicationForm.housingType} onChange={(event) => setApplicationForm({ ...applicationForm, housingType: event.target.value })} className={inputClass}>
+                            <option value="">{t('noPreference')}</option>
+                            <option value="tower_apartment">{t('towerApartment')}</option>
+                            <option value="apartment">{t('apartment')}</option>
+                            <option value="detached_house">{t('detachedHouse')}</option>
+                            <option value="shared_housing">{t('sharedHousing')}</option>
+                          </select>
+                          <span className="text-xs font-normal text-slate-600">{t('addressHousingNotice')}</span>
+                        </label>
+                        <div>
+                          <button disabled={busy} className={buttonClass}>{busy ? t('loading') : t('submit')}</button>
+                        </div>
+                      </form>
+                      <article aria-label={t('applicationPreview')} className="h-fit rounded border border-slate-300 bg-[#fffdf8] p-6 shadow-sm sm:p-8">
+                        <h3 className="border-b border-slate-300 pb-4 text-center text-lg font-bold tracking-widest">{t('applicationPreview')}</h3>
+                        <dl className="mt-5 space-y-3 text-sm leading-relaxed">
+                          {[
+                            [t('discordName'), applicationForm.discordName],
+                            [t('robloxUsername'), applicationForm.robloxUsername],
+                            [t('robloxDisplayName'), applicationForm.robloxDisplayName],
+                            [t('dateOfBirth'), applicationForm.birthDate],
+                            [t('occupation'), applicationForm.occupation],
+                            [t('desiredPhoneNumber'), applicationForm.phoneNumber],
+                            [t('desiredAddress'), applicationForm.address],
+                            [t('desiredHousingType'), applicationForm.housingType ? t(applicationForm.housingType) : ''],
+                          ].map(([label, value]) => (
+                            <div key={label} className="grid grid-cols-[auto_1fr] gap-2 border-b border-dotted border-slate-400 pb-1">
+                              <dt className="font-semibold">{label}：</dt>
+                              <dd className="min-h-5 break-words">{value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <p className="mt-8 text-sm leading-7">{t('applicationDeclaration')}</p>
+                      </article>
+                    </div>
                   </section>
                   <section className="rounded border border-slate-200 bg-white p-5">
                     <h2 className="text-lg font-bold">{t('myApplications')}</h2>
@@ -504,6 +847,28 @@ export default function ServiceCenter() {
               {tab === 'notifications' && (
                 <section className="rounded border border-slate-200 bg-white p-5">
                   <h2 className="text-lg font-bold">{t('notifications')}</h2>
+                  <section className="mt-4 rounded border border-slate-200 bg-slate-50 p-4">
+                    <h3 className="font-semibold">通知の受信設定</h3>
+                    <p className="mt-1 text-xs text-slate-600">緊急情報は設定にかかわらず表示されます。</p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {([
+                        ['service', '申請・行政手続き'],
+                        ['news', 'お知らせ'],
+                        ['community', 'コミュニティ'],
+                        ['account', 'アカウント'],
+                      ] as const).map(([category, label]) => (
+                        <label key={category} className="flex items-center gap-2 rounded bg-white p-3 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={notificationPreferences[category]}
+                            disabled={busy}
+                            onChange={(event) => void updateNotificationPreference(category, event.target.checked)}
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  </section>
                   {notifications.length === 0 ? <p className="mt-4 text-sm text-slate-500">{t('noRecords')}</p> : (
                     <div className="mt-4 divide-y divide-slate-100">
                       {notifications.map((notification) => {
@@ -546,9 +911,19 @@ export default function ServiceCenter() {
                     {posts.length === 0 ? <p className="rounded border border-slate-200 bg-white p-5 text-sm text-slate-500">{t('noRecords')}</p> : posts.map((post) => (
                       <article key={post.id} className="rounded border border-slate-200 bg-white p-5">
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          <div className="min-w-0">
                             <h3 className="font-bold">{post.title}</h3>
-                            <p className="mt-1 text-xs text-slate-400">{readableDate(post.created_at, dateLocale)} · {post.status === 'pending' ? t('status') + ': pending' : t('published')}</p>
+                            <div className="mt-2 flex items-center gap-2">
+                              <ResidentAvatar
+                                path={communityProfiles[post.user_id]?.avatar_path}
+                                name={communityProfiles[post.user_id]?.display_name || '住民'}
+                                size="small"
+                              />
+                              <Link href={`/toeiken/profile/${post.user_id}`} className="text-sm font-semibold text-blue-800 hover:underline">
+                                {communityProfiles[post.user_id]?.display_name || '住民'}
+                              </Link>
+                              <span className="text-xs text-slate-400">{readableDate(post.created_at, dateLocale)} · {post.status === 'pending' ? t('status') + ': pending' : t('published')}</span>
+                            </div>
                           </div>
                           {post.user_id !== user?.id && (
                             <button type="button" onClick={() => setReportForm({ postId: post.id, reason: '' })} className="text-xs text-red-700 underline">{t('report')}</button>
@@ -556,7 +931,19 @@ export default function ServiceCenter() {
                         </div>
                         <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">{post.body}</p>
                         {comments.filter((comment) => comment.post_id === post.id).map((comment) => (
-                          <p key={comment.id} className="mt-3 border-l-2 border-slate-200 pl-3 text-sm text-slate-600">{comment.body}</p>
+                          <div key={comment.id} className="mt-3 flex items-start gap-2 border-l-2 border-slate-200 pl-3">
+                            <ResidentAvatar
+                              path={communityProfiles[comment.user_id]?.avatar_path}
+                              name={communityProfiles[comment.user_id]?.display_name || '住民'}
+                              size="small"
+                            />
+                            <div className="min-w-0">
+                              <Link href={`/toeiken/profile/${comment.user_id}`} className="text-xs font-semibold text-blue-800 hover:underline">
+                                {communityProfiles[comment.user_id]?.display_name || '住民'}
+                              </Link>
+                              <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{comment.body}</p>
+                            </div>
+                          </div>
                         ))}
                         {post.status === 'published' && (
                           <form onSubmit={submitComment} className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -584,9 +971,25 @@ export default function ServiceCenter() {
 
               {tab === 'support' && (
                 <>
-                  <section className="rounded border border-slate-200 bg-white p-5">
+                  <section id="contact-form" className="scroll-mt-24 rounded border border-slate-200 bg-white p-5">
                     <h2 className="text-lg font-bold">{t('openTicket')}</h2>
                     <form onSubmit={createTicket} className="mt-4 grid gap-3">
+                      <label className="grid gap-1 text-sm font-medium">{t('contactCategory')}
+                        <select value={ticketForm.category} onChange={(event) => {
+                          const value = event.target.value;
+                          if (value === 'general' || isSupportCategory(value)) {
+                            const category = value;
+                            setTicketForm({ ...ticketForm, category });
+                          }
+                        }} className={inputClass}>
+                          <option value="general">{t('generalInquiry')}</option>
+                          <option value="operations_question">{t('operationsQuestion')}</option>
+                          <option value="operations_proposal">{t('operationsProposal')}</option>
+                          <option value="development_question">{t('developmentQuestion')}</option>
+                          <option value="development_proposal">{t('developmentProposal')}</option>
+                          <option value="appeal">{t('submitAppeal')}</option>
+                        </select>
+                      </label>
                       <label className="grid gap-1 text-sm font-medium">{t('subject')}
                         <input required maxLength={200} value={ticketForm.subject} onChange={(event) => setTicketForm({ ...ticketForm, subject: event.target.value })} className={inputClass} />
                       </label>
@@ -604,7 +1007,7 @@ export default function ServiceCenter() {
                           <article key={ticket.id} className="rounded border border-slate-200 p-4">
                             <button type="button" onClick={() => void openTicket(ticket.id)} className="w-full text-left">
                               <span className="font-semibold">{ticket.subject}</span>
-                              <span className="ml-2 text-xs text-slate-500">{ticket.status}</span>
+                              <span className="ml-2 text-xs text-slate-500">{ticket.category === 'general' ? t('generalInquiry') : t(ticket.category)} · {ticket.status}</span>
                             </button>
                             {selectedTicketId === ticket.id && (
                               <div className="mt-3 border-t border-slate-100 pt-3">
@@ -626,6 +1029,92 @@ export default function ServiceCenter() {
                         ))}
                       </div>
                     )}
+                  </section>
+                </>
+              )}
+
+              {tab === 'documents' && (
+                <>
+                  <section className="rounded border border-slate-200 bg-white p-5">
+                    <h2 className="text-lg font-bold">公的書類の発行申請</h2>
+                    <p className="mt-2 text-sm text-slate-600">管理局の審査後、照合番号付きの書類を発行します。発行書類はこの画面から印刷できます。</p>
+                    <form onSubmit={submitDocumentRequest} className="mt-4 grid gap-3">
+                      <label className="grid gap-1 text-sm font-medium">書類の種類
+                        <select value={documentForm.document_type} onChange={(event) => setDocumentForm({ ...documentForm, document_type: event.target.value as ResidentDocumentRequest['document_type'] })} className={inputClass}>
+                          <option value="residence_certificate">居住証明書</option>
+                          <option value="resident_status_certificate">住民登録証明書</option>
+                        </select>
+                      </label>
+                      <label className="grid gap-1 text-sm font-medium">使用目的
+                        <textarea required maxLength={500} rows={3} value={documentForm.purpose} onChange={(event) => setDocumentForm({ ...documentForm, purpose: event.target.value })} className={inputClass} />
+                      </label>
+                      <button disabled={busy} className={buttonClass}>{busy ? t('loading') : '発行を申請'}</button>
+                    </form>
+                  </section>
+                  <section className="rounded border border-slate-200 bg-white p-5">
+                    <h2 className="text-lg font-bold">書類申請履歴</h2>
+                    <div className="mt-3 divide-y divide-slate-100">
+                      {documentRequests.map((request) => (
+                        <article key={request.id} className="py-4">
+                          <h3 className="font-semibold">{request.document_type === 'residence_certificate' ? '居住証明書' : '住民登録証明書'}</h3>
+                          <p className="mt-1 text-xs text-slate-500">{readableDate(request.created_at, dateLocale)} · 状態: {request.status}</p>
+                          <p className="mt-2 whitespace-pre-wrap text-sm">使用目的: {request.purpose}</p>
+                          {request.staff_response && <p className="mt-2 rounded bg-blue-50 p-3 text-sm text-blue-900">{request.staff_response}</p>}
+                          {request.status === 'approved' && (
+                            <Link href={`/toeiken/documents/${request.id}`} className="mt-3 inline-block rounded bg-blue-700 px-3 py-2 text-sm font-semibold text-white">
+                              発行書類を表示・印刷
+                            </Link>
+                          )}
+                        </article>
+                      ))}
+                      {!documentRequests.length && <p className="py-3 text-sm text-slate-500">{t('noRecords')}</p>}
+                    </div>
+                  </section>
+                </>
+              )}
+
+              {tab === 'profile' && (
+                <>
+                  <section className="rounded border border-slate-200 bg-white p-5">
+                    <h2 className="text-lg font-bold">住民情報の変更申請</h2>
+                    <p className="mt-2 text-sm text-slate-600">申請内容は管理局が確認し、承認後に住民登録へ反映します。</p>
+                    <form onSubmit={submitProfileChange} className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <label className="grid gap-1 text-sm font-medium">氏名
+                        <input required maxLength={200} value={profileChangeForm.full_name} onChange={(event) => setProfileChangeForm({ ...profileChangeForm, full_name: event.target.value })} className={inputClass} />
+                      </label>
+                      <label className="grid gap-1 text-sm font-medium">住所
+                        <input maxLength={500} value={profileChangeForm.address} onChange={(event) => setProfileChangeForm({ ...profileChangeForm, address: event.target.value })} className={inputClass} />
+                      </label>
+                      <label className="grid gap-1 text-sm font-medium">生年月日
+                        <input type="date" value={profileChangeForm.birth_date} onChange={(event) => setProfileChangeForm({ ...profileChangeForm, birth_date: event.target.value })} className={inputClass} />
+                      </label>
+                      <label className="grid gap-1 text-sm font-medium">表示言語
+                        <select value={profileChangeForm.preferred_locale} onChange={(event) => setProfileChangeForm({ ...profileChangeForm, preferred_locale: event.target.value })} className={inputClass}>
+                          <option value="ja">日本語</option><option value="en">English</option><option value="zh-CN">简体中文</option><option value="ko">한국어</option>
+                        </select>
+                      </label>
+                      <label className="grid gap-1 text-sm font-medium sm:col-span-2">変更理由
+                        <textarea required maxLength={2000} rows={3} value={profileChangeForm.reason} onChange={(event) => setProfileChangeForm({ ...profileChangeForm, reason: event.target.value })} className={inputClass} />
+                      </label>
+                      <button disabled={busy || !profileData} className={`${buttonClass} justify-self-start sm:col-span-2`}>{busy ? t('loading') : '変更を申請'}</button>
+                    </form>
+                  </section>
+                  <section className="rounded border border-slate-200 bg-white p-5">
+                    <h2 className="text-lg font-bold">変更申請の状況</h2>
+                    <div className="mt-3 divide-y divide-slate-100">
+                      {profileChangeRequests.map((request) => (
+                        <article key={request.id} className="py-4">
+                          <p className="text-xs text-slate-500">{readableDate(request.created_at, dateLocale)} · 状態: {request.status}</p>
+                          <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+                            {Object.entries(request.requested_changes).map(([field, value]) => (
+                              <div key={field} className="rounded bg-slate-50 p-2 text-sm"><dt className="font-semibold">{field}</dt><dd className="break-words">{value || '未入力'}</dd></div>
+                            ))}
+                          </dl>
+                          {request.staff_response && <p className="mt-2 rounded bg-blue-50 p-3 text-sm text-blue-900">{request.staff_response}</p>}
+                        </article>
+                      ))}
+                      {!profileChangeRequests.length && <p className="py-3 text-sm text-slate-500">{t('noRecords')}</p>}
+                    </div>
                   </section>
                 </>
               )}

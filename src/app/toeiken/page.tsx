@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import Header from '../components/Header';
 import Breadcrumbs from '../components/Breadcrumbs';
@@ -9,21 +10,21 @@ import { getErrorMessage } from '../../lib/errors';
 
 export default function ToeikenAuthPage() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [loadingProvider, setLoadingProvider] = useState<'discord' | 'google' | null>(null);
+  const [loadingProvider, setLoadingProvider] = useState(false);
 
-  const handleAuth = async (provider: 'discord' | 'google') => {
-    setLoadingProvider(provider);
+  const handleGoogleAuth = async () => {
+    setLoadingProvider(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
-        provider,
+        provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/toeiken/dashboard`,
         },
       });
       if (error) throw error;
     } catch (error) {
-      setToast({ message: `${provider}認証エラー: ` + getErrorMessage(error, '不明なエラー'), type: 'error' });
-      setLoadingProvider(null);
+      setToast({ message: `Google認証エラー: ${getErrorMessage(error, '不明なエラー')}`, type: 'error' });
+      setLoadingProvider(false);
     }
   };
 
@@ -35,9 +36,9 @@ export default function ToeikenAuthPage() {
 
         <div className="bg-white border border-slate-300 rounded shadow-sm p-8">
           <div className="mb-6 pb-4 border-b border-slate-200">
-            <h1 className="text-xl font-bold text-slate-900">東栄県ユーザー専用ポータル ログイン</h1>
+            <h1 className="text-xl font-bold text-slate-900">東栄アカウント</h1>
             <p className="text-xs text-slate-500 mt-1">
-              東栄プロジェクト（東栄県）の住民・関係者向け認証画面です。アカウントを選択してログインしてください。
+              Googleアカウントまたはメールアドレスで東栄アカウントを作成・ログインできます。
             </p>
           </div>
 
@@ -48,16 +49,16 @@ export default function ToeikenAuthPage() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-slate-900 text-sm">Google アカウント</span>
                   <span className="text-[10px] bg-slate-200 text-slate-700 border border-slate-300 px-2 py-0.5 rounded font-medium">
-                    基本ログイン
+                    登録・ログイン
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                  Googleアカウントを用いてポータルへサインインします（初回は自動的にアカウントが作成されます）。
+                  Googleアカウントでログインします。初回の認証時には東栄アカウントが作成されます。
                 </p>
               </div>
               <button
-                onClick={() => handleAuth('google')}
-                disabled={loadingProvider !== null}
+                onClick={() => void handleGoogleAuth()}
+                disabled={loadingProvider}
                 className="w-full py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
@@ -66,34 +67,33 @@ export default function ToeikenAuthPage() {
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
-                <span>{loadingProvider === 'google' ? '認証中...' : 'Googleでログイン'}</span>
+                <span>{loadingProvider ? '認証中...' : 'Googleで登録・ログイン'}</span>
               </button>
             </div>
 
-            {/* Discord認証ボタン */}
-            <div className="border border-indigo-200 rounded p-5 bg-indigo-50/30 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-slate-900 text-sm">Discord アカウント</span>
-                  <span className="text-[10px] bg-indigo-100 text-indigo-800 border border-indigo-300 px-2 py-0.5 rounded font-medium">
-                    住民連携
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                  Discordアカウントで直接サインイン、またはログイン後のマイページから紐づけを行います。
-                </p>
+            <div className="mt-6 rounded border border-slate-200 bg-slate-50 p-4 text-center">
+              <p className="text-sm font-semibold text-slate-800">メールアドレスで利用する場合</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                東栄アカウントを新規作成するか、登録済みのメールアドレスでログインしてください。
+              </p>
+              <div className="mt-3 flex flex-col justify-center gap-3 text-xs sm:flex-row">
+                <Link
+                  href="/signup?next=%2Ftoeiken%2Fdashboard"
+                  className="rounded bg-[#0046ff] px-4 py-2 font-semibold text-white hover:bg-blue-700"
+                >
+                  メールアドレスで東栄アカウントを作成
+                </Link>
+                <Link
+                  href="/login?next=%2Ftoeiken%2Fdashboard"
+                  className="rounded border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  メールアドレスでログイン
+                </Link>
               </div>
-              <button
-                onClick={() => handleAuth('discord')}
-                disabled={loadingProvider !== null}
-                className="w-full py-2.5 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-semibold rounded shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <svg className="w-4 h-4 shrink-0 fill-current" viewBox="0 0 127.14 96.36">
-                  <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1,105.25,105.25,0,0,0,32.19-16.14c2.64-27.38-4.51-51.11-18.91-72.15ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74c6.51,0,11.62,5.78,11.44,12.74C53.89,60,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74c6.5,0,11.62,5.78,11.44,12.74C96.13,60,91.2,65.69,84.69,65.69Z" />
-                </svg>
-                <span>{loadingProvider === 'discord' ? '認証中...' : 'Discordでログイン'}</span>
-              </button>
             </div>
+            <p className="rounded border border-indigo-200 bg-indigo-50 p-3 text-xs leading-relaxed text-indigo-900">
+              Discord連携は任意です。東栄アカウントにログインした後、マイページから連携できます。
+            </p>
           </div>
         </div>
       </main>

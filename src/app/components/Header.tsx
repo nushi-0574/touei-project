@@ -7,14 +7,25 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 import { locales, useLocale } from '../../lib/i18n';
 
+type EmergencyAlertBanner = {
+  id: string;
+  title: string;
+  message: string;
+  severity: 'information' | 'warning' | 'critical';
+  area: string;
+};
+
 export default function Header() {
   const { locale, setLocale, t } = useLocale();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [residentDisplayName, setResidentDisplayName] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPoliceStaff, setIsPoliceStaff] = useState(false);
   const [isServiceStaff, setIsServiceStaff] = useState(false);
+  const [isActiveResident, setIsActiveResident] = useState(false);
+  const [emergencyAlerts, setEmergencyAlerts] = useState<EmergencyAlertBanner[]>([]);
   const isCurrent = (href: string) => href === '/'
     ? pathname === '/'
     : pathname === href || pathname.startsWith(`${href}/`);
@@ -31,37 +42,78 @@ export default function Header() {
 
   useEffect(() => {
     let active = true;
+    async function loadEmergencyAlerts() {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('emergency_alerts')
+        .select('id, title, message, severity, area, ends_at')
+        .eq('status', 'published')
+        .lte('starts_at', now)
+        .gt('ends_at', now)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) {
+        console.error('緊急情報の取得に失敗しました:', error);
+        return;
+      }
+      if (active) {
+        const severityRank = { critical: 0, warning: 1, information: 2 };
+        setEmergencyAlerts((data ?? []).sort((left, right) =>
+          severityRank[left.severity as keyof typeof severityRank] - severityRank[right.severity as keyof typeof severityRank]));
+      }
+    }
+
+    void loadEmergencyAlerts();
+    const timer = window.setInterval(() => void loadEmergencyAlerts(), 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
 
     const syncUser = async (nextUser: User | null) => {
       if (!active) return;
       setUser(nextUser);
+      setResidentDisplayName('');
       setIsAdmin(false);
       setIsPoliceStaff(false);
       setIsServiceStaff(false);
+      setIsActiveResident(false);
 
       if (!nextUser) return;
 
-      const [{ data: profile, error }, { data: permissions, error: permissionsError }] = await Promise.all([
+      const [{ data: profile, error }, { data: permissions, error: permissionsError }, { data: roles, error: rolesError }] = await Promise.all([
         supabase
           .from('profiles')
-          .select('is_admin, is_police_staff')
+          .select('is_admin, is_police_staff, display_name, full_name, resident_status')
           .eq('id', nextUser.id)
           .maybeSingle(),
         supabase
           .from('staff_permissions')
           .select('permission')
           .eq('user_id', nextUser.id),
+        supabase
+          .from('staff_roles')
+          .select('role')
+          .eq('user_id', nextUser.id),
       ]);
 
-      if (error || permissionsError) {
-        console.error('職員権限の確認に失敗しました:', error || permissionsError);
+      if (error || permissionsError || rolesError) {
+        console.error('職員権限の確認に失敗しました:', error || permissionsError || rolesError);
         return;
       }
 
       if (active) {
+        setResidentDisplayName(profile?.display_name || profile?.full_name || '住民');
+        setIsActiveResident(profile?.resident_status === 'active');
         setIsAdmin(profile?.is_admin === true);
         setIsPoliceStaff(profile?.is_police_staff === true);
-        setIsServiceStaff(profile?.is_admin === true || (permissions?.length ?? 0) > 0);
+        const hasDepartmentRole = roles?.some((assignment) =>
+          ['operations_bureau', 'administration_bureau', 'development_bureau'].includes(assignment.role)) ?? false;
+        setIsServiceStaff(profile?.is_admin === true || (permissions?.length ?? 0) > 0 || hasDepartmentRole);
       }
     };
 
@@ -76,9 +128,11 @@ export default function Header() {
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (!session?.user) {
+        setResidentDisplayName('');
         setIsAdmin(false);
         setIsPoliceStaff(false);
         setIsServiceStaff(false);
+        setIsActiveResident(false);
         return;
       }
       window.setTimeout(() => void syncUser(session.user), 0);
@@ -97,6 +151,7 @@ export default function Header() {
   };
 
   return (
+    <>
     <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
         
@@ -111,8 +166,9 @@ export default function Header() {
         <nav className="hidden md:flex items-center gap-4 text-xs">
           <Link href="/" aria-current={isCurrent('/') ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isCurrent('/') ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>{t('home')}</Link>
           <Link href={user ? '/toeiken/dashboard' : '/toeiken'} aria-current={isResidentCurrent ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isResidentCurrent ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>{t('residents')}</Link>
+          {user && <Link href="/toeiken/messages" aria-current={isCurrent('/toeiken/messages') ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isCurrent('/toeiken/messages') ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>チャット</Link>}
           <Link href="/toeiken/police-result" aria-current={isCurrent('/toeiken/police-result') ? 'page' : undefined} className={`rounded px-1 py-2 transition-colors ${isCurrent('/toeiken/police-result') ? 'font-bold text-white underline decoration-blue-400 decoration-2 underline-offset-8' : 'hover:text-blue-400'}`}>{t('examResults')}</Link>
-          {isPoliceStaff && (
+          {(isPoliceStaff || isAdmin) && (
             <Link href="/police" aria-current={isCurrent('/police') ? 'page' : undefined} className={`font-semibold transition-colors ${isCurrent('/police') ? 'text-white underline underline-offset-8' : 'text-emerald-300 hover:text-emerald-200'}`}>
               {t('policePage')}
             </Link>
@@ -129,6 +185,16 @@ export default function Header() {
               業務管理
             </Link>
           )}
+          {isServiceStaff && (
+            <Link href="/admin/operations" aria-current={isCurrent('/admin/operations') ? 'page' : undefined} className={`font-semibold transition-colors ${isCurrent('/admin/operations') ? 'text-white underline underline-offset-8' : 'text-blue-300 hover:text-blue-200'}`}>
+              業務状況
+            </Link>
+          )}
+          {user && isActiveResident && (
+            <Link href="/toeiken/messages" aria-current={isCurrent('/toeiken/messages') ? 'page' : undefined} className={`font-semibold transition-colors ${isCurrent('/toeiken/messages') ? 'text-white underline underline-offset-8' : 'text-slate-200 hover:text-white'}`}>
+              チャット
+            </Link>
+          )}
 
           <label className="sr-only" htmlFor="header-locale">{t('language')}</label>
           <select
@@ -143,10 +209,10 @@ export default function Header() {
             <option value="ko">{t('ko')}</option>
           </select>
 
-          {/* メールアドレス・マイページ情報の表示（復活） */}
+          {/* Resident display name and account links */}
           {user ? (
             <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded border border-slate-700 text-slate-300">
-              <span className="text-[11px] font-mono text-slate-300">{user.email}</span>
+              <span className="text-[11px] text-slate-100">{residentDisplayName || '住民'}</span>
               <Link href="/toeiken/dashboard" className="text-blue-400 hover:underline font-semibold">{t('myPage')}</Link>
               <button onClick={handleSignOut} className="text-slate-300 hover:text-white">{t('signOut')}</button>
             </div>
@@ -193,6 +259,16 @@ export default function Header() {
           >
             {user ? t('myPage') : t('residents')}
           </Link>
+          {user && (
+            <Link
+              href="/toeiken/messages"
+              onClick={() => setIsOpen(false)}
+              aria-current={isCurrent('/toeiken/messages') ? 'page' : undefined}
+              className={`block min-h-11 py-3 border-b border-slate-700/50 ${isCurrent('/toeiken/messages') ? 'font-bold text-white' : 'text-slate-200 hover:text-white'}`}
+            >
+              チャット
+            </Link>
+          )}
           <Link
             href="/toeiken/police-result"
             onClick={() => setIsOpen(false)}
@@ -201,7 +277,7 @@ export default function Header() {
           >
             {t('examResults')}
           </Link>
-          {isPoliceStaff && (
+          {(isPoliceStaff || isAdmin) && (
             <Link
               href="/police"
               onClick={() => setIsOpen(false)}
@@ -233,6 +309,26 @@ export default function Header() {
               業務管理
             </Link>
           )}
+          {isServiceStaff && (
+            <Link
+              href="/admin/operations"
+              onClick={() => setIsOpen(false)}
+              aria-current={isCurrent('/admin/operations') ? 'page' : undefined}
+              className={`block min-h-11 py-3 font-semibold border-b border-slate-700/50 ${isCurrent('/admin/operations') ? 'text-white' : 'text-blue-300 hover:text-blue-200'}`}
+            >
+              業務状況
+            </Link>
+          )}
+          {user && isActiveResident && (
+            <Link
+              href="/toeiken/messages"
+              onClick={() => setIsOpen(false)}
+              aria-current={isCurrent('/toeiken/messages') ? 'page' : undefined}
+              className={`block min-h-11 py-3 border-b border-slate-700/50 ${isCurrent('/toeiken/messages') ? 'font-bold text-white' : 'text-slate-200 hover:text-white'}`}
+            >
+              チャット
+            </Link>
+          )}
 
           {/* モバイル用メール・ログイン情報 */}
           <div className="pt-2">
@@ -250,7 +346,7 @@ export default function Header() {
             </select>
             {user ? (
               <div className="space-y-2 bg-slate-900/50 p-3 rounded border border-slate-700">
-                <p className="text-[11px] text-slate-400 font-mono break-all">ログイン中: {user.email}</p>
+                <p className="text-[11px] text-slate-400 break-words">ログイン中: {residentDisplayName || '住民'}</p>
                 <Link
                   href="/toeiken/dashboard"
                   onClick={() => setIsOpen(false)}
@@ -278,5 +374,23 @@ export default function Header() {
         </nav>
       )}
     </header>
+    {emergencyAlerts.length > 0 && (
+      <aside aria-label="緊急情報" className="border-b border-red-300 bg-red-50 text-red-950">
+        <div className="mx-auto max-w-6xl space-y-2 px-4 py-3 sm:px-6">
+          {emergencyAlerts.map((alert) => (
+            <article key={alert.id} role={alert.severity === 'critical' ? 'alert' : 'status'} className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
+              <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-bold ${alert.severity === 'critical' ? 'bg-red-700 text-white' : alert.severity === 'warning' ? 'bg-amber-200 text-amber-950' : 'bg-blue-100 text-blue-950'}`}>
+                {alert.severity === 'critical' ? '緊急' : alert.severity === 'warning' ? '警戒情報' : 'お知らせ'}
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold">{alert.title}</h2>
+                <p className="mt-1 whitespace-pre-wrap text-sm">{alert.area} · {alert.message}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </aside>
+    )}
+    </>
   );
 }

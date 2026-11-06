@@ -9,10 +9,12 @@ import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import { normalizeCommandSystemUrl } from '../../lib/commandSystem';
 import { getErrorMessage } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
+import PoliceRadio from './PoliceRadio';
 
 export default function PolicePage() {
   const [loading, setLoading] = useState(true);
-  const [isPoliceStaff, setIsPoliceStaff] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [policeOrgRole, setPoliceOrgRole] = useState('一般');
   const [commandSystemUrl, setCommandSystemUrl] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const router = useRouter();
@@ -31,14 +33,22 @@ export default function PolicePage() {
 
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('is_police_staff')
+          .select('is_admin, is_police_staff, police_org_role')
           .eq('id', session.user.id)
           .maybeSingle();
         if (profileError) throw profileError;
         if (!active) return;
 
-        const authorized = profile?.is_police_staff === true;
-        setIsPoliceStaff(authorized);
+        const authorized = profile?.is_admin === true || profile?.is_police_staff === true;
+        setHasAccess(authorized);
+        if (
+          profile?.police_org_role === '教官'
+          || profile?.police_org_role === '学生'
+          || profile?.police_org_role === '一般'
+          || profile?.police_org_role === '指令'
+        ) {
+          setPoliceOrgRole(profile.police_org_role);
+        }
         if (!authorized) return;
 
         const { data: settings, error: settingsError } = await supabase
@@ -77,10 +87,10 @@ export default function PolicePage() {
           <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-4">
             {errorMessage}
           </p>
-        ) : !isPoliceStaff ? (
+        ) : !hasAccess ? (
           <section className="bg-white border border-slate-200 rounded p-6 text-center">
             <h1 className="text-lg font-bold text-slate-900">警察職員専用ページ</h1>
-            <p className="text-sm text-slate-600 mt-2">このページを利用するには警察職員ロールが必要です。</p>
+            <p className="text-sm text-slate-600 mt-2">このページを利用するには管理者または警察職員ロールが必要です。</p>
             <Link href="/dashboard" className="inline-block mt-4 text-sm text-blue-700 hover:underline">
               メインメニューへ戻る
             </Link>
@@ -88,11 +98,16 @@ export default function PolicePage() {
         ) : (
           <div className="space-y-6">
             <section className="bg-white border border-slate-200 rounded p-6">
-              <h1 className="text-xl font-bold text-slate-900">警察職員メインメニュー</h1>
+              <h1 className="text-xl font-bold text-slate-900">警察向けメインメニュー</h1>
               <p className="text-sm text-slate-600 mt-2">
-                Command systemの通報受付機能を利用できます。通報確認後、通報は起動中の指令システムへ送信されます。
+                警察向け機能を利用できます。管理者にはこの画面の閲覧権限があります。
+              </p>
+              <p className="mt-3 inline-flex rounded bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-900">
+                警察内役割: {policeOrgRole}
               </p>
             </section>
+
+            <PoliceRadio />
 
             <section className="bg-white border border-red-200 rounded p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">

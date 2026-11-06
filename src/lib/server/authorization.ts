@@ -2,7 +2,6 @@ import 'server-only';
 
 import type { User } from '@supabase/supabase-js';
 import { getAuthenticatedUser, getSupabaseAdmin } from './supabase';
-import { isChiefAdministratorEmail } from '../administrator';
 
 export const STAFF_PERMISSIONS = [
   'manage_residents',
@@ -17,7 +16,26 @@ export const STAFF_PERMISSIONS = [
 ] as const;
 
 export type StaffPermission = (typeof STAFF_PERMISSIONS)[number];
-type StaffAuthorizationPermission = StaffPermission | 'manage_staff';
+type StaffAuthorizationPermission = StaffPermission
+  | 'manage_staff'
+  | 'manage_profile_changes'
+  | 'manage_documents'
+  | 'manage_emergency_alerts'
+  | 'read_audit_logs';
+
+const permissionRole: Partial<Record<StaffAuthorizationPermission, string[]>> = {
+  manage_applications: ['administration_bureau'],
+  manage_support: ['operations_bureau', 'administration_bureau', 'development_bureau'],
+  manage_profile_changes: ['administration_bureau'],
+  manage_documents: ['administration_bureau'],
+  manage_emergency_alerts: ['operations_bureau'],
+};
+
+const permissionFallbacks: Partial<Record<StaffAuthorizationPermission, StaffPermission[]>> = {
+  manage_profile_changes: ['manage_residents'],
+  manage_documents: ['manage_residents', 'manage_applications'],
+  manage_emergency_alerts: ['manage_map'],
+};
 
 export type StaffAuthorization = {
   user: User;
@@ -39,20 +57,31 @@ export async function authorizeStaff(
     .maybeSingle();
   if (profileError) throw profileError;
 
-  const isChiefAdmin = isChiefAdministratorEmail(user.email);
-  if (profile?.is_admin || isChiefAdmin) {
-    return { user, isSuperAdmin: profile?.is_super_admin === true || isChiefAdmin };
+  if (profile?.is_admin) {
+    if (permission === 'read_audit_logs' && profile.is_super_admin !== true) return null;
+    return { user, isSuperAdmin: profile.is_super_admin === true };
   }
-  if (permission === 'manage_staff') return null;
+  if (permission === 'manage_staff' || permission === 'read_audit_logs') return null;
 
   const { data: assignment, error: permissionError } = await admin
     .from('staff_permissions')
     .select('permission')
     .eq('user_id', user.id)
-    .eq('permission', permission)
+    .in('permission', [permission, ...(permissionFallbacks[permission] ?? [])])
     .maybeSingle();
   if (permissionError) throw permissionError;
-  return assignment ? { user, isSuperAdmin: false } : null;
+  if (assignment) return { user, isSuperAdmin: false };
+
+  const requiredRoles = permissionRole[permission];
+  if (!requiredRoles?.length) return null;
+  const { data: role, error: roleError } = await admin
+    .from('staff_roles')
+    .select('role')
+    .eq('user_id', user.id)
+    .in('role', requiredRoles)
+    .maybeSingle();
+  if (roleError) throw roleError;
+  return role ? { user, isSuperAdmin: false } : null;
 }
 
 export function isStaffPermission(value: unknown): value is StaffPermission {

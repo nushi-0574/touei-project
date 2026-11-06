@@ -1,7 +1,6 @@
 import { getApplicationUrl, getSupabaseAdmin } from '@/src/lib/server/billing';
 import { authorizeStaff } from '@/src/lib/server/authorization';
 import { getErrorMessage } from '@/src/lib/errors';
-import { isChiefAdministratorEmail } from '@/src/lib/administrator';
 
 type ResidentInput = {
   email?: unknown;
@@ -38,24 +37,31 @@ export async function GET(request: Request) {
     if (search) query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
     if (status !== 'all') query = query.eq('resident_status', status);
 
-    const [{ data, error, count }, permissionsResult] = await Promise.all([
+    const [{ data, error, count }, permissionsResult, rolesResult] = await Promise.all([
       query,
       authorized.isSuperAdmin
         ? getSupabaseAdmin().from('staff_permissions').select('user_id, permission')
         : Promise.resolve({ data: [], error: null }),
+      authorized.isSuperAdmin
+        ? getSupabaseAdmin().from('staff_roles').select('user_id, role')
+        : Promise.resolve({ data: [], error: null }),
     ]);
     if (error) throw error;
     if (permissionsResult.error) throw permissionsResult.error;
+    if (rolesResult.error) throw rolesResult.error;
+    const rolesByUser = new Map<string, string[]>();
+    for (const assignment of rolesResult.data ?? []) {
+      rolesByUser.set(assignment.user_id, [...(rolesByUser.get(assignment.user_id) ?? []), assignment.role]);
+    }
+    for (const resident of data ?? []) {
+      if (resident.is_police_staff) {
+        rolesByUser.set(resident.id, [...(rolesByUser.get(resident.id) ?? []), 'police']);
+      }
+    }
     return Response.json({
-      residents: data?.map((resident) => {
-        const isChiefAdmin = isChiefAdministratorEmail(resident.email);
-        return {
-          ...resident,
-          is_admin: resident.is_admin || isChiefAdmin,
-          is_super_admin: resident.is_super_admin || isChiefAdmin,
-        };
-      }),
+      residents: data,
       permissions: permissionsResult.data,
+      roles: [...rolesByUser].flatMap(([userId, assignedRoles]) => assignedRoles.map((role) => ({ user_id: userId, role }))),
       isSuperAdmin: authorized.isSuperAdmin,
       total: count ?? 0,
       page,
