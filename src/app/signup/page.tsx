@@ -1,86 +1,98 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import Toast from '../components/Toast';
+import { getDaysInMonth } from '../../lib/dates';
+import { getErrorMessage } from '../../lib/errors';
+import { useCurrentYear } from '../../lib/useCurrentYear';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   
-  // 初期値は固定の年（例: 2000年）にしておき、マウント後に現在の年に合わせる
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [birthYear, setBirthYear] = useState('2006');
+  const currentYear = useCurrentYear();
+  const [birthYear, setBirthYear] = useState(String(currentYear - 20));
   const [birthMonth, setBirthMonth] = useState('1');
   const [birthDay, setBirthDay] = useState('1');
 
-  const [gender, setGender] = useState('未選択');
+  const [gender, setGender] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    const year = new Date().getFullYear();
-    setCurrentYear(year);
-    setBirthYear(String(year - 20));
-  }, []);
-
-  const years = Array.from({ length: 101 }, (_, i) => currentYear - i);
+  const years = Array.from({ length: 121 }, (_, i) => currentYear - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
-  const days = Array.from({ length: 31 }, (_, i) => i + 1);
+  const days = Array.from({ length: getDaysInMonth(Number(birthYear), Number(birthMonth)) }, (_, i) => i + 1);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    const formattedMonth = String(birthMonth).padStart(2, '0');
-    const formattedDay = String(birthDay).padStart(2, '0');
-    const birthDate = `${birthYear}-${formattedMonth}-${formattedDay}`;
+    const birthDate = `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`;
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            birth_date: birthDate,
+            gender,
+          },
+        },
+      });
+      if (error) throw error;
+
+      if (data.user) {
+        const { error: profileError } = await supabase.from('profiles').upsert({
+          id: data.user.id,
+          email: email.trim(),
+          full_name: fullName.trim(),
           birth_date: birthDate,
-          gender: gender,
+          gender,
+        });
+        if (profileError) {
+          console.error('プロフィールの初期登録に失敗しました:', profileError);
+          setToast({
+            message: `アカウントは作成されましたが、プロフィールの初期登録に失敗しました: ${profileError.message}`,
+            type: 'error',
+          });
         }
       }
-    });
-
-    if (error) {
-      setToast({ message: error.message, type: 'error' });
-      setLoading(false);
-    } else {
-      if (data.user) {
-        await supabase.from('profiles').upsert({
-          id: data.user.id,
-          email: email,
-          full_name: fullName,
-          birth_date: birthDate,
-          gender: gender,
-          role: 'customer'
-        });
+      if (data.session) {
+        router.replace('/dashboard');
+        router.refresh();
+      } else {
+        setSuccess(true);
       }
-      setSuccess(true);
+    } catch (error) {
+      setToast({ message: getErrorMessage(error, 'アカウントの作成に失敗しました。'), type: 'error' });
+    } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`
-      }
-    });
-    if (error) {
-      setToast({ message: error.message, type: 'error' });
+    setOauthLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+      if (error) throw error;
+    } catch (error) {
+      setToast({ message: getErrorMessage(error, 'Google認証に失敗しました。'), type: 'error' });
+      setOauthLoading(false);
     }
   };
 
@@ -98,21 +110,22 @@ export default function SignupPage() {
             <div className="p-4 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800 space-y-3">
               <p className="font-semibold">確認メールを送信しました。</p>
               <p>メールボックスをご確認いただき、記載されたリンクからアカウントを有効化してください。</p>
-              <a
+              <Link
                 href="/login"
                 className="block text-center bg-[#0046ff] text-white py-2 rounded font-medium mt-4"
               >
                 ログイン画面へ戻る
-              </a>
+              </Link>
             </div>
           ) : (
             <>
               <button
                 onClick={handleGoogleLogin}
                 type="button"
-                className="w-full mb-6 py-2 px-4 border border-slate-300 rounded text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors flex items-center justify-center space-x-2"
+                disabled={oauthLoading || loading}
+                className="w-full mb-6 py-2 px-4 border border-slate-300 rounded text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
               >
-                <span>Googleで登録・ログイン</span>
+                <span>{oauthLoading ? '処理中...' : 'Googleで登録・ログイン'}</span>
               </button>
 
               <div className="relative mb-6 text-center">
@@ -138,7 +151,11 @@ export default function SignupPage() {
                   <div className="grid grid-cols-3 gap-2">
                     <select
                       value={birthYear}
-                      onChange={(e) => setBirthYear(e.target.value)}
+                      onChange={(e) => {
+                        const year = e.target.value;
+                        setBirthYear(year);
+                        setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(year), Number(birthMonth)))));
+                      }}
                       className="px-2 py-2 bg-white border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:border-[#0046ff]"
                     >
                       {years.map((y) => (
@@ -148,7 +165,11 @@ export default function SignupPage() {
 
                     <select
                       value={birthMonth}
-                      onChange={(e) => setBirthMonth(e.target.value)}
+                      onChange={(e) => {
+                        const month = e.target.value;
+                        setBirthMonth(month);
+                        setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(birthYear), Number(month)))));
+                      }}
                       className="px-2 py-2 bg-white border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:border-[#0046ff]"
                     >
                       {months.map((m) => (
@@ -173,8 +194,10 @@ export default function SignupPage() {
                   <select
                     value={gender}
                     onChange={(e) => setGender(e.target.value)}
+                    required
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded text-sm text-slate-800 focus:outline-none focus:border-[#0046ff]"
                   >
+                    <option value="" disabled>選択してください</option>
                     <option value="男性">男性</option>
                     <option value="女性">女性</option>
                     <option value="その他">その他</option>
@@ -208,7 +231,7 @@ export default function SignupPage() {
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || oauthLoading}
                   className="w-full py-2 bg-[#0046ff] hover:bg-blue-700 text-white font-medium text-xs rounded transition-colors disabled:opacity-50 mt-2"
                 >
                   {loading ? '処理中...' : '登録する'}
@@ -220,9 +243,9 @@ export default function SignupPage() {
           {!success && (
             <p className="mt-6 text-center text-xs text-slate-500">
               すでにアカウントをお持ちですか？{' '}
-              <a href="/login" className="text-[#0046ff] font-medium hover:underline">
+              <Link href="/login" className="text-[#0046ff] font-medium hover:underline">
                 ログイン
-              </a>
+              </Link>
             </p>
           )}
         </div>

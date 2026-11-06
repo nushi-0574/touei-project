@@ -1,122 +1,169 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import type { User } from '@supabase/supabase-js';
+import Link from 'next/link';
 import Header from '../../components/Header';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import Toast from '../../components/Toast';
 import { supabase } from '../../../lib/supabase';
+import { getDaysInMonth } from '../../../lib/dates';
+import { getErrorMessage } from '../../../lib/errors';
+import { useCurrentYear } from '../../../lib/useCurrentYear';
+
+type Profile = {
+  id: string;
+  email?: string | null;
+  full_name?: string | null;
+  address?: string | null;
+  birth_date?: string | null;
+  discord_id?: string | null;
+  is_admin?: boolean;
+  is_police_staff?: boolean;
+};
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [linkingDiscord, setLinkingDiscord] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  // フォームステート
   const [fullName, setFullName] = useState('');
   const [address, setAddress] = useState('');
-
-  // 生年月日プルダウン用ステート
-  const [birthYear, setBirthYear] = useState('2000');
+  const baseYear = useCurrentYear();
+  const [birthYear, setBirthYear] = useState(String(baseYear - 20));
   const [birthMonth, setBirthMonth] = useState('1');
   const [birthDay, setBirthDay] = useState('1');
-
-  const baseYear = 2026;
-  const years = Array.from({ length: 50 }, (_, i) => baseYear - i);
+  const years = Array.from({ length: 121 }, (_, i) => baseYear - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
-  const days = Array.from({ length: 31 }, (_, i) => i + 1);
+  const days = Array.from({ length: getDaysInMonth(Number(birthYear), Number(birthMonth)) }, (_, i) => i + 1);
 
   useEffect(() => {
-    async function loadUserData() {
-      // セッションの取得と維持
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
+    let active = true;
 
-        // プロファイルおよびDiscord Identityの確認
-        const { data: profileData } = await supabase
+    async function loadUserData() {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (!session) {
+          if (active) setUser(null);
+          return;
+        }
+
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .maybeSingle();
+        if (profileError) throw profileError;
 
-        // ログインセッション中のDiscord IDを取得
-        const discordIdentity = session.user.identities?.find((id: any) => id.provider === 'discord');
-        const discordId = discordIdentity ? discordIdentity.id : (session.user.app_metadata?.provider === 'discord' ? session.user.id : null);
+        const discordIdentity = session.user.identities?.find((identity) => identity.provider === 'discord');
+        const discordId = discordIdentity?.id ??
+          (session.user.app_metadata.provider === 'discord' ? session.user.id : null);
+        let nextProfile = profileData as Profile | null;
 
-        if (profileData) {
-          setProfile(profileData);
-          setFullName(profileData.full_name || '');
-          setAddress(profileData.address || '');
-
-          if (profileData.birth_date) {
-            const [y, m, d] = profileData.birth_date.split('-');
-            if (y) setBirthYear(y);
-            if (m) setBirthMonth(String(parseInt(m, 10)));
-            if (d) setBirthDay(String(parseInt(d, 10)));
-          }
-
-          // Discord未保存だが認証済みの場合は自動同期
-          if (discordId && !profileData.discord_id) {
-            const { data: updated } = await supabase
+        if (nextProfile) {
+          if (discordId && !nextProfile.discord_id) {
+            const { data: updated, error } = await supabase
               .from('profiles')
               .update({ discord_id: discordId })
               .eq('id', session.user.id)
               .select()
               .single();
-            if (updated) setProfile(updated);
+            if (error) throw error;
+            nextProfile = updated as Profile;
           }
         } else {
-          // プロファイル初期作成
-          const { data: newProfile } = await supabase
+          const { data: newProfile, error } = await supabase
             .from('profiles')
-            .insert([{ id: session.user.id, email: session.user.email, discord_id: discordId }])
+            .insert([{
+              id: session.user.id,
+              email: session.user.email,
+              full_name: session.user.user_metadata.full_name || '',
+              discord_id: discordId,
+            }])
             .select()
             .single();
-
-          if (newProfile) setProfile(newProfile);
+          if (error) throw error;
+          nextProfile = newProfile as Profile;
         }
+
+        if (!active) return;
+        setUser(session.user);
+        setProfile(nextProfile);
+        setFullName(nextProfile.full_name || '');
+        setAddress(nextProfile.address || '');
+        if (nextProfile.birth_date) {
+          const [year, month, day] = nextProfile.birth_date.split('-');
+          if (year) setBirthYear(year);
+          if (month) setBirthMonth(String(Number(month)));
+          if (day) setBirthDay(String(Number(day)));
+        }
+      } catch (error) {
+        console.error('ユーザー情報の取得に失敗しました:', error);
+        if (active) setToast({ message: getErrorMessage(error, 'ユーザー情報の取得に失敗しました。'), type: 'error' });
+      } finally {
+        if (active) setLoading(false);
       }
-      setLoading(false);
     }
 
-    loadUserData();
-
-    // 認証状態の変更を常に監視して維持
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser(session.user);
-      }
-    });
+    void loadUserData();
 
     return () => {
-      authListener.subscription.unsubscribe();
+      active = false;
     };
   }, []);
 
-  // 登録情報保存ボタンのアクション（警告トースト表示）
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setToast({ message: '登録変更期間外です。', type: 'error' });
+    if (!user) return;
+
+    const birthDate = `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          email: user.email,
+          full_name: fullName.trim(),
+          address: address.trim(),
+          birth_date: birthDate,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      setProfile(data as Profile);
+      setToast({ message: '住民登録情報を保存しました。', type: 'success' });
+    } catch (error) {
+      console.error('プロフィールの保存に失敗しました:', error);
+      setToast({ message: getErrorMessage(error, 'プロフィールの保存に失敗しました。'), type: 'error' });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Discord紐づけ処理
   const handleLinkDiscord = async () => {
-    const { error } = await supabase.auth.linkIdentity({
-      provider: 'discord',
-      options: {
-        redirectTo: `${window.location.origin}/toeiken/dashboard`,
-      },
-    });
-
-    if (error) {
-      setToast({ message: 'Discord連携エラー: ' + error.message, type: 'error' });
+    setLinkingDiscord(true);
+    try {
+      const { error } = await supabase.auth.linkIdentity({
+        provider: 'discord',
+        options: {
+          redirectTo: `${window.location.origin}/toeiken/dashboard`,
+        },
+      });
+      if (error) throw error;
+    } catch (error) {
+      setToast({ message: 'Discord連携エラー: ' + getErrorMessage(error, '不明なエラー'), type: 'error' });
+      setLinkingDiscord(false);
     }
   };
 
   // 判定：セッション Identities、プロファイル内 discord_id、またはプロバイダ設定を広く判定
   const hasDiscordIdentity = 
-    user?.identities?.some((id: any) => id.provider === 'discord') ||
+    user?.identities?.some((identity) => identity.provider === 'discord') ||
     user?.app_metadata?.provider === 'discord' ||
     Boolean(profile?.discord_id);
 
@@ -133,19 +180,34 @@ export default function DashboardPage() {
               <p className="text-xs text-slate-500 mt-1">ご登録アカウントの情報確認および住民情報の登録・修正を行います。</p>
             </div>
 
-            {/* 管理者用ダッシュボード切り替えボタン（管理者のみ表示） */}
-            {profile?.is_admin && (
-              <a
-                href="/admin"
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white text-xs font-bold rounded shadow transition-colors shrink-0"
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/toeiken/portal"
+                className="inline-flex items-center justify-center px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded shadow transition-colors shrink-0"
               >
+                住民ポータルへ
+              </Link>
+              {profile?.is_admin && (
+                <Link
+                  href="/admin"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white text-xs font-bold rounded shadow transition-colors shrink-0"
+                >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 管理者画面へ
-              </a>
-            )}
+                </Link>
+              )}
+              {profile?.is_police_staff && (
+                <Link
+                  href="/police"
+                  className="inline-flex items-center justify-center px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded shadow transition-colors shrink-0"
+                >
+                  警察職員ページ
+                </Link>
+              )}
+            </div>
           </div>
 
           {loading ? (
@@ -153,7 +215,7 @@ export default function DashboardPage() {
           ) : !user ? (
             <div className="text-center py-6">
               <p className="text-xs text-red-600 mb-3">ログインが必要です。</p>
-              <a href="/toeiken" className="text-xs bg-slate-900 text-white px-4 py-2 rounded">ログイン画面へ</a>
+              <Link href="/toeiken" className="text-xs bg-slate-900 text-white px-4 py-2 rounded">ログイン画面へ</Link>
             </div>
           ) : (
             <div className="space-y-8">
@@ -182,6 +244,7 @@ export default function DashboardPage() {
                       type="text"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
+                      required
                       placeholder="例: 東栄 太郎"
                       className="w-full sm:w-1/2 px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:outline-none"
                     />
@@ -192,7 +255,11 @@ export default function DashboardPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <select
                         value={birthYear}
-                        onChange={(e) => setBirthYear(e.target.value)}
+                        onChange={(e) => {
+                          const year = e.target.value;
+                          setBirthYear(year);
+                          setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(year), Number(birthMonth)))));
+                        }}
                         className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                       >
                         {years.map((y) => (
@@ -201,7 +268,11 @@ export default function DashboardPage() {
                       </select>
                       <select
                         value={birthMonth}
-                        onChange={(e) => setBirthMonth(e.target.value)}
+                        onChange={(e) => {
+                          const month = e.target.value;
+                          setBirthMonth(month);
+                          setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(birthYear), Number(month)))));
+                        }}
                         className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                       >
                         {months.map((m) => (
@@ -234,9 +305,10 @@ export default function DashboardPage() {
                   <div className="pt-2">
                     <button
                       type="submit"
-                      className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded transition-colors shadow"
+                      disabled={saving}
+                      className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded transition-colors shadow disabled:opacity-50"
                     >
-                      登録情報を保存する
+                      {saving ? '保存中...' : '登録情報を保存する'}
                     </button>
                   </div>
                 </form>
@@ -268,9 +340,10 @@ export default function DashboardPage() {
                   ) : (
                     <button
                       onClick={handleLinkDiscord}
-                      className="px-3 py-1.5 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-semibold rounded shadow transition-colors"
+                      disabled={linkingDiscord}
+                      className="px-3 py-1.5 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-semibold rounded shadow transition-colors disabled:opacity-50"
                     >
-                      Discordを紐づける
+                      {linkingDiscord ? '連携中...' : 'Discordを紐づける'}
                     </button>
                   )}
                 </div>

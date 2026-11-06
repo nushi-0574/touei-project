@@ -1,15 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import Toast from '../components/Toast';
+import { getErrorMessage } from '../../lib/errors';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const router = useRouter();
 
@@ -17,29 +20,33 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setToast({ message: error.message, type: 'error' });
-      setLoading(false);
-    } else {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (error) throw error;
       router.push('/dashboard');
       router.refresh();
+    } catch (error) {
+      setToast({ message: getErrorMessage(error, 'ログインに失敗しました。'), type: 'error' });
+      setLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`
-      }
-    });
-    if (error) {
-      setToast({ message: error.message, type: 'error' });
+    setOauthLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+      if (error) throw error;
+    } catch (error) {
+      setToast({ message: getErrorMessage(error, 'Google認証に失敗しました。'), type: 'error' });
+      setOauthLoading(false);
     }
   };
 
@@ -56,9 +63,10 @@ export default function LoginPage() {
           <button
             onClick={handleGoogleLogin}
             type="button"
-            className="w-full mb-6 py-2 px-4 border border-slate-300 rounded text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors flex items-center justify-center space-x-2"
+            disabled={oauthLoading || loading}
+            className="w-full mb-6 py-2 px-4 border border-slate-300 rounded text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
           >
-            <span>Googleでログイン</span>
+            <span>{oauthLoading ? '処理中...' : 'Googleでログイン'}</span>
           </button>
 
           <div className="relative mb-6 text-center">
@@ -91,7 +99,7 @@ export default function LoginPage() {
             </div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || oauthLoading}
               className="w-full py-2 bg-[#0046ff] hover:bg-blue-700 text-white font-medium text-xs rounded transition-colors disabled:opacity-50 mt-2"
             >
               {loading ? '処理中...' : 'ログイン'}
@@ -100,9 +108,9 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-xs text-slate-500">
             アカウントをお持ちではありませんか？{' '}
-            <a href="/signup" className="text-[#0046ff] font-medium hover:underline">
+            <Link href="/signup" className="text-[#0046ff] font-medium hover:underline">
               新規登録
-            </a>
+            </Link>
           </p>
         </div>
       </div>

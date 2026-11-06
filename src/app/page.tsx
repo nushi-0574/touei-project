@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Header from './components/Header';
 import { supabase } from '../lib/supabase';
+import { getErrorMessage } from '../lib/errors';
 
 type NewsItem = {
   id: number;
@@ -13,42 +14,63 @@ type NewsItem = {
   category: string;
 };
 
+type MenuCard = {
+  id: string;
+  title: string;
+  description: string;
+  link_url: string;
+  display_order: number;
+};
+
+function isSafeLink(href: string): boolean {
+  if (href.startsWith('/') && !href.startsWith('//')) return true;
+
+  try {
+    const url = new URL(href);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export default function Home() {
   const [emergencyText, setEmergencyText] = useState('');
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
   const [newsList, setNewsList] = useState<NewsItem[]>([]);
+  const [menuCards, setMenuCards] = useState<MenuCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
+    let active = true;
+
     async function fetchData() {
       try {
-        const { data: settingData } = await supabase
-          .from('site_settings')
-          .select('*')
-          .eq('id', 1)
-          .single();
+        const [settingResult, newsResult, cardsResult] = await Promise.all([
+          supabase.from('site_settings').select('emergency_text, is_emergency_active').eq('id', 1).maybeSingle(),
+          supabase.from('news_items').select('id, date_str, title, link_url, category').order('id', { ascending: false }),
+          supabase.from('main_menu_cards').select('id, title, description, link_url, display_order').eq('is_visible', true).order('display_order', { ascending: true }),
+        ]);
+        const queryError = [settingResult, newsResult, cardsResult].find((result) => result.error)?.error;
+        if (queryError) throw queryError;
 
-        if (settingData) {
-          setEmergencyText(settingData.emergency_text || '');
-          setIsEmergencyActive(settingData.is_emergency_active || false);
-        }
-
-        const { data: newsData } = await supabase
-          .from('news_items')
-          .select('*')
-          .order('id', { ascending: false });
-
-        if (newsData) {
-          setNewsList(newsData);
-        }
-      } catch (err) {
-        console.error('データ取得エラー:', err);
+        if (!active) return;
+        setEmergencyText(settingResult.data?.emergency_text || '');
+        setIsEmergencyActive(settingResult.data?.is_emergency_active === true);
+        setNewsList(newsResult.data || []);
+        setMenuCards(cardsResult.data || []);
+      } catch (error) {
+        console.error('データ取得エラー:', error);
+        if (active) setLoadError(getErrorMessage(error, 'データの読み込みに失敗しました。'));
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
 
-    fetchData();
+    void fetchData();
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (
@@ -99,6 +121,8 @@ export default function Home() {
             
             {loading ? (
               <p className="text-xs text-slate-500 py-4 text-center">読み込み中...</p>
+            ) : loadError ? (
+              <p role="alert" className="text-xs text-red-700 py-4 text-center">情報を読み込めませんでした。時間をおいて再度お試しください。</p>
             ) : newsList.length === 0 ? (
               <p className="text-xs text-slate-500 py-4 text-center">現在、新着情報はありません。</p>
             ) : (
@@ -109,9 +133,15 @@ export default function Home() {
                       <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-mono shrink-0">
                         {item.date_str}
                       </span>
-                      <Link href={item.link_url} className="text-blue-700 hover:underline font-medium">
-                        {item.title}
-                      </Link>
+                      {item.link_url && isSafeLink(item.link_url) ? (
+                        item.link_url.startsWith('/') ? (
+                          <Link href={item.link_url} className="text-blue-700 hover:underline font-medium">{item.title}</Link>
+                        ) : (
+                          <a href={item.link_url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline font-medium">{item.title}</a>
+                        )
+                      ) : (
+                        <span className="font-medium">{item.title}</span>
+                      )}
                     </div>
                     <span className="text-[10px] bg-blue-50 text-blue-800 px-2 py-0.5 rounded w-fit">
                       {item.category}
@@ -154,6 +184,35 @@ export default function Home() {
             </div>
           </aside>
         </div>
+
+        {menuCards.length > 0 && (
+          <section aria-labelledby="menu-cards-heading">
+            <h2 id="menu-cards-heading" className="text-base font-bold text-slate-900 border-l-4 border-blue-600 pl-2 mb-4">
+              ポータルメニュー
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {menuCards.map((card) => {
+                const href = card.link_url?.trim() || '';
+                const content = (
+                  <>
+                    <h3 className="font-bold text-slate-900">{card.title}</h3>
+                    <p className="text-xs text-slate-600 mt-2">{card.description}</p>
+                  </>
+                );
+                const className = 'block h-full bg-white border border-slate-300 rounded p-5 hover:border-blue-500 transition-colors';
+
+                if (!isSafeLink(href)) {
+                  return <div key={card.id} className={className}>{content}</div>;
+                }
+                return href.startsWith('/') ? (
+                  <Link key={card.id} href={href} className={className}>{content}</Link>
+                ) : (
+                  <a key={card.id} href={href} target="_blank" rel="noopener noreferrer" className={className}>{content}</a>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </main>
 
       <footer className="border-t border-slate-300 bg-slate-900 text-slate-300 mt-12 py-8 text-xs">
@@ -172,7 +231,7 @@ export default function Home() {
           </div>
         </div>
         <div className="border-t border-slate-800 pt-6 text-center text-slate-500 text-[11px]">
-          &copy; 2026 葵プロジェクト / 東栄プロジェクト (Touei Prefectural Government). All Rights Reserved.
+          &copy; 2026 葵プロジェクト / 東栄プロジェクト (Toei Prefectural Government). All Rights Reserved.
         </div>
       </footer>
     </div>

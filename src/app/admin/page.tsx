@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import Header from '../components/Header';
 import Toast from '../components/Toast';
 import { supabase } from '../../lib/supabase';
+import { getErrorMessage } from '../../lib/errors';
+import { normalizeCommandSystemUrl } from '../../lib/commandSystem';
 
 type NewsItem = { id: number; date_str: string; title: string; link_url: string; category: string; };
 type ExamResultItem = { id: number; exam_number: string; name: string; birth_date: string; result: string; exam_name: string; };
@@ -18,14 +21,36 @@ type CustomPageItem = {
   is_published: boolean;
   display_order?: number;
   created_at?: string;
+  translations?: Record<string, { title?: string; description?: string; content?: string }>;
 };
 type MenuCardItem = { id: string; title: string; description: string; link_url: string; display_order: number; is_visible: boolean; };
-type UserProfileItem = { id: string; email: string; full_name: string; is_admin: boolean; created_at: string; };
+type UserProfileItem = {
+  id: string;
+  email: string;
+  full_name: string;
+  is_admin: boolean;
+  is_super_admin: boolean;
+  is_police_staff: boolean;
+  created_at: string;
+};
+
+function isSafeDestination(value: string): boolean {
+  if (value.startsWith('/') && !value.startsWith('//')) return true;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 export default function AdminPage() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
 
   // 1. サイト緊急情報
   const [emergencyText, setEmergencyText] = useState('');
@@ -40,10 +65,10 @@ export default function AdminPage() {
   // 3. 警察官採用試験 合否データ管理ステート
   const [examResultsList, setExamResultsList] = useState<ExamResultItem[]>([]);
   const [examNumber, setExamNumber] = useState('');
-  const [examName, setExamName] = useState('令和8年度 東栄県警察官採用試験');
+  const [examName, setExamName] = useState('');
   const [examFullName, setExamFullName] = useState('');
-  const [examBirthDate, setExamBirthDate] = useState('2000-04-01');
-  const [examResult, setExamResult] = useState('合格');
+  const [examBirthDate, setExamBirthDate] = useState('');
+  const [examResult, setExamResult] = useState('');
   const [editingExamId, setEditingExamId] = useState<number | null>(null);
 
   // 4. カスタムページ高度管理ステート
@@ -54,6 +79,11 @@ export default function AdminPage() {
   const [pageDescription, setPageDescription] = useState('');
   const [pageKeywords, setPageKeywords] = useState('');
   const [pageContent, setPageContent] = useState('');
+  const [pageTranslations, setPageTranslations] = useState<Record<string, { title: string; description: string; content: string }>>({
+    en: { title: '', description: '', content: '' },
+    'zh-CN': { title: '', description: '', content: '' },
+    ko: { title: '', description: '', content: '' },
+  });
   const [pageIsPublished, setPageIsPublished] = useState(true);
   const [pageDisplayOrder, setPageDisplayOrder] = useState('0');
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
@@ -65,34 +95,33 @@ export default function AdminPage() {
   const [cardDesc, setCardDesc] = useState('');
   const [cardLink, setCardLink] = useState('');
   const [cardOrder, setCardOrder] = useState('0');
+  const [cardVisible, setCardVisible] = useState(true);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
 
   // 6. ユーザー一覧ステート
   const [userProfiles, setUserProfiles] = useState<UserProfileItem[]>([]);
+  const [commandSystemUrl, setCommandSystemUrl] = useState('');
 
-  useEffect(() => {
-    checkUserAndFetchData();
-  }, []);
-
-  const checkUserAndFetchData = async () => {
-    setLoading(true);
+  const checkUserAndFetchData = useCallback(async () => {
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
+      if (sessionError) throw sessionError;
+      setLoading(true);
+      if (!session) {
         setIsAuthenticated(false);
-        setLoading(false);
         return;
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('is_admin')
+        .select('is_admin, is_super_admin')
         .eq('id', session.user.id)
         .maybeSingle();
 
+      if (profileError) throw profileError;
+      setIsSuperAdmin(profile?.is_super_admin === true);
       if (!profile?.is_admin) {
         setIsAuthenticated(false);
-        setLoading(false);
         return;
       }
 
@@ -104,12 +133,20 @@ export default function AdminPage() {
         supabase.from('police_exam_results').select('*').order('id', { ascending: false }),
         supabase.from('custom_pages').select('*').order('display_order', { ascending: true }),
         supabase.from('main_menu_cards').select('*').order('display_order', { ascending: true }),
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+        supabase
+          .from('profiles')
+          .select('id, email, full_name, is_admin, is_super_admin, is_police_staff, created_at')
+          .order('created_at', { ascending: false }),
       ]);
+
+      const queryError = [settingRes, newsRes, examRes, pagesRes, cardsRes, usersRes]
+        .find((result) => result.error)?.error;
+      if (queryError) throw queryError;
 
       if (settingRes.data) {
         setEmergencyText(settingRes.data.emergency_text || '');
         setIsEmergencyActive(settingRes.data.is_emergency_active || false);
+        setCommandSystemUrl(settingRes.data.command_system_url || '');
       }
       if (newsRes.data) setNewsList(newsRes.data);
       if (examRes.data) setExamResultsList(examRes.data);
@@ -119,11 +156,20 @@ export default function AdminPage() {
 
     } catch (err) {
       console.error('データ取得エラー:', err);
-      setToast({ message: 'データの取得中にエラーが発生しました。', type: 'error' });
+      setIsAuthenticated(false);
+      setToast({
+        message: `データの取得中にエラーが発生しました: ${getErrorMessage(err, '不明なエラー')}`,
+        type: 'error',
+      });
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void checkUserAndFetchData(), 0);
+    return () => window.clearTimeout(timer);
+  }, [checkUserAndFetchData]);
 
   // --- 緊急情報の保存 ---
   const handleSaveEmergency = async (e: React.FormEvent) => {
@@ -134,8 +180,8 @@ export default function AdminPage() {
         .upsert({ id: 1, emergency_text: emergencyText, is_emergency_active: isEmergencyActive });
       if (error) throw error;
       setToast({ message: '緊急情報を更新しました。', type: 'success' });
-    } catch (err: any) {
-      setToast({ message: '緊急情報の保存に失敗しました: ' + err.message, type: 'error' });
+    } catch (err: unknown) {
+      setToast({ message: '緊急情報の保存に失敗しました: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
     }
   };
 
@@ -146,8 +192,12 @@ export default function AdminPage() {
       setToast({ message: 'お知らせタイトルを入力してください。', type: 'error' });
       return;
     }
+    if (newsLink.trim() && !isSafeDestination(newsLink.trim())) {
+      setToast({ message: 'リンク先はサイト内パス（/で開始）または http(s) URL を入力してください。', type: 'error' });
+      return;
+    }
     try {
-      const today = new Date().toISOString().split('T')[0].replace(/-/g, '.');
+      const today = new Date().toLocaleDateString('sv-SE').replace(/-/g, '.');
       const { error } = await supabase
         .from('news_items')
         .insert([{ date_str: today, title: newsTitle.trim(), category: newsCategory, link_url: newsLink.trim() }]);
@@ -157,8 +207,8 @@ export default function AdminPage() {
       setNewsTitle('');
       setNewsLink('');
       checkUserAndFetchData();
-    } catch (err: any) {
-      setToast({ message: '新着情報の追加に失敗しました: ' + err.message, type: 'error' });
+    } catch (err: unknown) {
+      setToast({ message: '新着情報の追加に失敗しました: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
     }
   };
 
@@ -169,16 +219,16 @@ export default function AdminPage() {
       if (error) throw error;
       setNewsList(newsList.filter((n) => n.id !== id));
       setToast({ message: '新着情報を削除しました。', type: 'success' });
-    } catch (err: any) {
-      setToast({ message: '削除に失敗しました: ' + err.message, type: 'error' });
+    } catch (err: unknown) {
+      setToast({ message: '削除に失敗しました: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
     }
   };
 
   // --- 警察官採用試験 合否データ ---
   const handleSaveExamResult = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!examNumber.trim() || !examFullName.trim()) {
-      setToast({ message: '受験番号と氏名を入力してください。', type: 'error' });
+    if (!examNumber.trim() || !examName.trim() || !examFullName.trim() || !examBirthDate || !examResult) {
+      setToast({ message: '試験名、受験番号、氏名、生年月日、合否結果を入力してください。', type: 'error' });
       return;
     }
 
@@ -213,21 +263,24 @@ export default function AdminPage() {
       }
 
       setExamNumber('');
+      setExamName('');
       setExamFullName('');
+      setExamBirthDate('');
+      setExamResult('');
       setEditingExamId(null);
       checkUserAndFetchData();
-    } catch (err: any) {
-      setToast({ message: '合否データの保存に失敗しました: ' + err.message, type: 'error' });
+    } catch (err: unknown) {
+      setToast({ message: '合否データの保存に失敗しました: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
     }
   };
 
   const handleEditExamClick = (item: ExamResultItem) => {
     setEditingExamId(item.id);
     setExamNumber(item.exam_number);
-    setExamName(item.exam_name || '令和8年度 東栄県警察官採用試験');
+    setExamName(item.exam_name || '');
     setExamFullName(item.name);
-    setExamBirthDate(item.birth_date || '2000-04-01');
-    setExamResult(item.result || '合格');
+    setExamBirthDate(item.birth_date || '');
+    setExamResult(item.result || '');
   };
 
   const handleDeleteExam = async (id: number) => {
@@ -237,8 +290,8 @@ export default function AdminPage() {
       if (error) throw error;
       setExamResultsList(examResultsList.filter((item) => item.id !== id));
       setToast({ message: '合否データを削除しました。', type: 'success' });
-    } catch (err: any) {
-      setToast({ message: '削除に失敗しました: ' + err.message, type: 'error' });
+    } catch (err: unknown) {
+      setToast({ message: '削除に失敗しました: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
     }
   };
 
@@ -250,6 +303,11 @@ export default function AdminPage() {
     setPageDescription('');
     setPageKeywords('');
     setPageContent('');
+    setPageTranslations({
+      en: { title: '', description: '', content: '' },
+      'zh-CN': { title: '', description: '', content: '' },
+      ko: { title: '', description: '', content: '' },
+    });
     setPageIsPublished(true);
     setPageDisplayOrder('0');
     setEditingPageId(null);
@@ -262,6 +320,10 @@ export default function AdminPage() {
       setToast({ message: 'URLスラッグとタイトルを入力してください。', type: 'error' });
       return;
     }
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(pageSlug.trim().toLowerCase())) {
+      setToast({ message: 'URLスラッグは半角英小文字・数字とハイフンで入力してください。', type: 'error' });
+      return;
+    }
 
     try {
       const payload = {
@@ -271,6 +333,7 @@ export default function AdminPage() {
         description: pageDescription.trim(),
         keywords: pageKeywords.trim(),
         content: pageContent,
+        translations: pageTranslations,
         is_published: pageIsPublished,
         display_order: parseInt(pageDisplayOrder, 10) || 0,
         updated_at: new Date().toISOString(),
@@ -293,8 +356,8 @@ export default function AdminPage() {
 
       resetCustomPageForm();
       checkUserAndFetchData();
-    } catch (err: any) {
-      setToast({ message: 'ページの保存に失敗しました: ' + err.message, type: 'error' });
+    } catch (err: unknown) {
+      setToast({ message: 'ページの保存に失敗しました: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
     }
   };
 
@@ -306,6 +369,11 @@ export default function AdminPage() {
     setPageDescription(page.description || '');
     setPageKeywords(page.keywords || '');
     setPageContent(page.content || '');
+    setPageTranslations({
+      en: { title: page.translations?.en?.title || '', description: page.translations?.en?.description || '', content: page.translations?.en?.content || '' },
+      'zh-CN': { title: page.translations?.['zh-CN']?.title || '', description: page.translations?.['zh-CN']?.description || '', content: page.translations?.['zh-CN']?.content || '' },
+      ko: { title: page.translations?.ko?.title || '', description: page.translations?.ko?.description || '', content: page.translations?.ko?.content || '' },
+    });
     setPageIsPublished(page.is_published ?? true);
     setPageDisplayOrder(String(page.display_order || 0));
     setPreviewMode(false);
@@ -318,8 +386,8 @@ export default function AdminPage() {
       if (error) throw error;
       setCustomPages(customPages.filter((p) => p.id !== id));
       setToast({ message: 'ページを削除しました。', type: 'success' });
-    } catch (err: any) {
-      setToast({ message: '削除に失敗しました: ' + err.message, type: 'error' });
+    } catch (err: unknown) {
+      setToast({ message: '削除に失敗しました: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
     }
   };
 
@@ -330,20 +398,31 @@ export default function AdminPage() {
       setToast({ message: 'カードタイトルと遷移先URLを入力してください。', type: 'error' });
       return;
     }
+    if (!isSafeDestination(cardLink.trim())) {
+      setToast({ message: '遷移先URLはサイト内パス（/で開始）または http(s) URL を入力してください。', type: 'error' });
+      return;
+    }
 
     try {
-      const orderVal = parseInt(cardOrder, 10) || 0;
+      const orderVal = Number.parseInt(cardOrder, 10) || 0;
+      const payload = {
+        title: cardTitle.trim(),
+        description: cardDesc.trim(),
+        link_url: cardLink.trim(),
+        display_order: orderVal,
+        is_visible: cardVisible,
+      };
       if (editingCardId) {
         const { error } = await supabase
           .from('main_menu_cards')
-          .update({ title: cardTitle.trim(), description: cardDesc.trim(), link_url: cardLink.trim(), display_order: orderVal })
+          .update(payload)
           .eq('id', editingCardId);
         if (error) throw error;
         setToast({ message: 'メニューカードを更新しました。', type: 'success' });
       } else {
         const { error } = await supabase
           .from('main_menu_cards')
-          .insert([{ title: cardTitle.trim(), description: cardDesc.trim(), link_url: cardLink.trim(), display_order: orderVal }]);
+          .insert([payload]);
         if (error) throw error;
         setToast({ message: 'メニューカードを追加しました。', type: 'success' });
       }
@@ -352,10 +431,11 @@ export default function AdminPage() {
       setCardDesc('');
       setCardLink('');
       setCardOrder('0');
+      setCardVisible(true);
       setEditingCardId(null);
       checkUserAndFetchData();
-    } catch (err: any) {
-      setToast({ message: 'カードの保存に失敗しました: ' + err.message, type: 'error' });
+    } catch (err: unknown) {
+      setToast({ message: 'カードの保存に失敗しました: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
     }
   };
 
@@ -366,25 +446,68 @@ export default function AdminPage() {
       if (error) throw error;
       setMenuCards(menuCards.filter((c) => c.id !== id));
       setToast({ message: 'メニューカードを削除しました。', type: 'success' });
-    } catch (err: any) {
-      setToast({ message: '削除に失敗しました: ' + err.message, type: 'error' });
+    } catch (err: unknown) {
+      setToast({ message: '削除に失敗しました: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
     }
   };
 
-  // --- 管理者権限の切り替え ---
-  const handleToggleAdminStatus = async (userId: string, currentStatus: boolean) => {
-    if (!confirm(`このユーザーの管理者権限を ${currentStatus ? '剥奪' : '付与'} しますか？`)) return;
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ is_admin: !currentStatus })
-        .eq('id', userId);
+  const handleUpdateUserRoles = async (
+    user: UserProfileItem,
+    roles: { isAdmin: boolean; isPoliceStaff: boolean },
+  ) => {
+    if (user.is_super_admin) {
+      setToast({ message: '主任管理者の権限は変更できません。', type: 'error' });
+      return;
+    }
 
+    const changes: string[] = [];
+    if (roles.isAdmin !== user.is_admin) changes.push(`管理者権限を${roles.isAdmin ? '付与' : '解除'}`);
+    if (roles.isPoliceStaff !== user.is_police_staff) changes.push(`警察職員ロールを${roles.isPoliceStaff ? '付与' : '解除'}`);
+    if (!changes.length) return;
+    if (!confirm(`${user.email || user.full_name} の${changes.join('、')}を行いますか？`)) return;
+
+    setUpdatingRoleId(user.id);
+    try {
+      const { error } = await supabase.rpc('set_profile_roles', {
+        target_user_id: user.id,
+        new_is_admin: roles.isAdmin,
+        new_is_police_staff: roles.isPoliceStaff,
+      });
       if (error) throw error;
       setToast({ message: 'ユーザー権限を更新しました。', type: 'success' });
-      checkUserAndFetchData();
-    } catch (err: any) {
-      setToast({ message: '権限変更に失敗しました: ' + err.message, type: 'error' });
+      await checkUserAndFetchData();
+    } catch (err: unknown) {
+      setToast({ message: '権限変更に失敗しました: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
+    } finally {
+      setUpdatingRoleId(null);
+    }
+  };
+
+  const handleSaveCommandSystemUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const normalizedUrl = normalizeCommandSystemUrl(commandSystemUrl);
+    if (commandSystemUrl.trim() && !normalizedUrl) {
+      setToast({
+        message: 'Command systemのURLには、httpまたはhttpsで始まるサーバーURLを入力してください。',
+        type: 'error',
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('site_settings')
+        .upsert({
+          id: 1,
+          emergency_text: emergencyText,
+          is_emergency_active: isEmergencyActive,
+          command_system_url: normalizedUrl,
+        });
+      if (error) throw error;
+      setCommandSystemUrl(normalizedUrl || '');
+      setToast({ message: 'Command systemの接続先を保存しました。', type: 'success' });
+    } catch (err: unknown) {
+      setToast({ message: '接続先の保存に失敗しました: ' + getErrorMessage(err, '不明なエラー'), type: 'error' });
     }
   };
 
@@ -401,10 +524,27 @@ export default function AdminPage() {
             <p className="text-xs text-slate-600 mt-1">
               緊急情報、新着お知らせ、合否照会データ、高機能動的ページ、メニューカード、ユーザー権限を一元管理します。
             </p>
+            <p className="text-xs text-slate-600 mt-1">
+              権限: {isSuperAdmin ? '主任管理者（管理者権限も管理可能）' : '一般管理者'}
+            </p>
           </div>
           <span className={`px-3 py-1 rounded text-xs font-semibold ${isAuthenticated ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'}`}>
             {isAuthenticated ? '最高管理者認証済み' : 'アクセス制限'}
           </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/residents"
+            className="inline-flex items-center gap-2 rounded bg-[#0046ff] px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+          >
+            住民登録
+          </Link>
+          <Link
+            href="/admin/services"
+            className="inline-flex items-center gap-2 rounded border border-slate-400 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50"
+          >
+            業務管理
+          </Link>
         </div>
 
         {loading ? (
@@ -414,9 +554,9 @@ export default function AdminPage() {
         ) : !isAuthenticated ? (
           <div className="bg-white border border-slate-300 rounded p-8 text-center space-y-4">
             <p className="text-xs text-red-600 font-bold">管理者権限が必要です。ログインを行ってください。</p>
-            <a href="/toeiken" className="inline-block px-4 py-2 bg-[#5865F2] text-white text-xs font-semibold rounded shadow">
+            <Link href="/toeiken" className="inline-block px-4 py-2 bg-[#5865F2] text-white text-xs font-semibold rounded shadow">
               認証ページへ移動
-            </a>
+            </Link>
           </div>
         ) : (
           <div className="space-y-8">
@@ -470,16 +610,16 @@ export default function AdminPage() {
                         <label className="block font-semibold mb-1">URLスラッグ (英数字小文字)</label>
                         <div className="flex items-center gap-1">
                           <span className="text-slate-500 font-mono text-[11px]">/pages/</span>
-                          <input type="text" value={pageSlug} onChange={(e) => setPageSlug(e.target.value)} placeholder="about や police-guide など" className="w-full px-3 py-1.5 border border-slate-300 rounded font-mono" />
+                          <input type="text" value={pageSlug} onChange={(e) => setPageSlug(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded font-mono" />
                         </div>
                       </div>
                       <div>
                         <label className="block font-semibold mb-1">ページタイトル</label>
-                        <input type="text" value={pageTitle} onChange={(e) => setPageTitle(e.target.value)} placeholder="例: 東栄県警 組織概要" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                        <input type="text" value={pageTitle} onChange={(e) => setPageTitle(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
                       </div>
                       <div>
                         <label className="block font-semibold mb-1">カテゴリー分類</label>
-                        <input type="text" value={pageCategory} onChange={(e) => setPageCategory(e.target.value)} placeholder="例: 行政案内, 警察関係" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                        <input type="text" value={pageCategory} onChange={(e) => setPageCategory(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
                       </div>
                     </div>
 
@@ -490,7 +630,7 @@ export default function AdminPage() {
                       </div>
                       <div>
                         <label className="block font-semibold mb-1">検索用キーワード (Comma区切り)</label>
-                        <input type="text" value={pageKeywords} onChange={(e) => setPageKeywords(e.target.value)} placeholder="東栄県, 警察, 採用" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                        <input type="text" value={pageKeywords} onChange={(e) => setPageKeywords(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -510,6 +650,30 @@ export default function AdminPage() {
                       <label className="block font-semibold mb-1">ページ本文（テキスト・改行対応）</label>
                       <textarea rows={8} value={pageContent} onChange={(e) => setPageContent(e.target.value)} placeholder="ページの文章を入力してください..." className="w-full px-3 py-2 border border-slate-300 rounded font-sans leading-relaxed" />
                     </div>
+                    <details className="rounded border border-slate-200 bg-white p-3">
+                      <summary className="cursor-pointer font-bold text-slate-800">英語・中国語・韓国語のページ翻訳</summary>
+                      <p className="mt-2 text-[11px] text-slate-500">翻訳欄が空の場合は日本語の内容を表示します。翻訳済みの公開可能な内容を入力してください。</p>
+                      <div className="mt-3 space-y-4">
+                        {([
+                          ['en', 'English'],
+                          ['zh-CN', '简体中文'],
+                          ['ko', '한국어'],
+                        ] as const).map(([locale, label]) => (
+                          <fieldset key={locale} className="grid gap-2 rounded border border-slate-200 p-3">
+                            <legend className="px-1 font-bold">{label}</legend>
+                            <label className="grid gap-1">タイトル
+                              <input value={pageTranslations[locale].title} onChange={(event) => setPageTranslations((current) => ({ ...current, [locale]: { ...current[locale], title: event.target.value } }))} className="w-full rounded border border-slate-300 px-3 py-2" />
+                            </label>
+                            <label className="grid gap-1">概要
+                              <input value={pageTranslations[locale].description} onChange={(event) => setPageTranslations((current) => ({ ...current, [locale]: { ...current[locale], description: event.target.value } }))} className="w-full rounded border border-slate-300 px-3 py-2" />
+                            </label>
+                            <label className="grid gap-1">本文
+                              <textarea rows={5} value={pageTranslations[locale].content} onChange={(event) => setPageTranslations((current) => ({ ...current, [locale]: { ...current[locale], content: event.target.value } }))} className="w-full rounded border border-slate-300 px-3 py-2" />
+                            </label>
+                          </fieldset>
+                        ))}
+                      </div>
+                    </details>
                   </>
                 ) : (
                   <div className="bg-white border border-slate-300 p-6 rounded space-y-4">
@@ -552,7 +716,9 @@ export default function AdminPage() {
                       {page.description && <p className="text-[11px] text-slate-500 line-clamp-1">{page.description}</p>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <a href={`/pages/${page.slug}`} target="_blank" className="px-2.5 py-1 text-blue-600 border border-blue-200 hover:bg-blue-50 rounded text-[11px]">表示確認</a>
+                      {page.is_published && (
+                        <a href={`/pages/${page.slug}`} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1 text-blue-600 border border-blue-200 hover:bg-blue-50 rounded text-[11px]">表示確認</a>
+                      )}
                       <button onClick={() => handleEditPageClick(page)} className="px-2.5 py-1 text-slate-700 border border-slate-300 bg-white rounded text-[11px]">編集</button>
                       <button onClick={() => handleDeletePage(page.id)} className="px-2.5 py-1 text-red-600 border border-red-200 hover:bg-red-50 rounded text-[11px]">削除</button>
                     </div>
@@ -585,7 +751,6 @@ export default function AdminPage() {
                     type="text"
                     value={emergencyText}
                     onChange={(e) => setEmergencyText(e.target.value)}
-                    placeholder="例: 台風接近に伴う庁舎窓口の短縮営業について"
                     className="w-full px-3 py-1.5 border border-slate-300 rounded"
                   />
                 </div>
@@ -604,7 +769,7 @@ export default function AdminPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2">
                     <label className="block font-semibold mb-1">お知らせタイトル</label>
-                    <input type="text" value={newsTitle} onChange={(e) => setNewsTitle(e.target.value)} placeholder="例: 令和8年度 採用広報説明会の実施について" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                    <input type="text" value={newsTitle} onChange={(e) => setNewsTitle(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
                   </div>
                   <div>
                     <label className="block font-semibold mb-1">カテゴリ</label>
@@ -618,7 +783,7 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">詳細リンクURL（任意）</label>
-                  <input type="text" value={newsLink} onChange={(e) => setNewsLink(e.target.value)} placeholder="例: /pages/recruitment" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                  <input type="text" value={newsLink} onChange={(e) => setNewsLink(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
                 </div>
                 <button type="submit" className="px-4 py-1.5 bg-slate-800 text-white font-bold rounded">お知らせを追加投稿</button>
               </form>
@@ -650,23 +815,24 @@ export default function AdminPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-semibold mb-1">試験名</label>
-                    <input type="text" value={examName} onChange={(e) => setExamName(e.target.value)} placeholder="例: 令和8年度 東栄県警察官採用試験" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                    <input required type="text" value={examName} onChange={(e) => setExamName(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
                   </div>
                   <div>
                     <label className="block font-semibold mb-1">受験番号</label>
-                    <input type="text" value={examNumber} onChange={(e) => setExamNumber(e.target.value)} placeholder="例: P-2026-001" className="w-full px-3 py-1.5 border border-slate-300 rounded font-mono" />
+                    <input required type="text" value={examNumber} onChange={(e) => setExamNumber(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded font-mono" />
                   </div>
                   <div>
                     <label className="block font-semibold mb-1">氏名</label>
-                    <input type="text" value={examFullName} onChange={(e) => setExamFullName(e.target.value)} placeholder="例: 東栄 太郎" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                    <input required type="text" value={examFullName} onChange={(e) => setExamFullName(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
                   </div>
                   <div>
                     <label className="block font-semibold mb-1">生年月日</label>
-                    <input type="date" value={examBirthDate} onChange={(e) => setExamBirthDate(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                    <input required type="date" value={examBirthDate} onChange={(e) => setExamBirthDate(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
                   </div>
                   <div>
                     <label className="block font-semibold mb-1">合否結果</label>
-                    <select value={examResult} onChange={(e) => setExamResult(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded bg-white">
+                    <select required value={examResult} onChange={(e) => setExamResult(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded bg-white">
+                      <option value="">選択してください</option>
                       <option value="合格">合格</option>
                       <option value="不合格">不合格</option>
                       <option value="第一次合格">第一次合格</option>
@@ -677,7 +843,7 @@ export default function AdminPage() {
 
                 <div className="flex justify-end gap-2 pt-2">
                   {editingExamId !== null && (
-                    <button type="button" onClick={() => { setEditingExamId(null); setExamNumber(''); setExamFullName(''); }} className="px-3 py-1.5 border border-slate-300 bg-white rounded">
+                    <button type="button" onClick={() => { setEditingExamId(null); setExamNumber(''); setExamName(''); setExamFullName(''); setExamBirthDate(''); setExamResult(''); }} className="px-3 py-1.5 border border-slate-300 bg-white rounded">
                       キャンセル
                     </button>
                   )}
@@ -722,11 +888,11 @@ export default function AdminPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block font-semibold mb-1">カードタイトル</label>
-                    <input type="text" value={cardTitle} onChange={(e) => setCardTitle(e.target.value)} placeholder="例: 住民ポータル" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                    <input type="text" value={cardTitle} onChange={(e) => setCardTitle(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
                   </div>
                   <div>
                     <label className="block font-semibold mb-1">遷移先URL</label>
-                    <input type="text" value={cardLink} onChange={(e) => setCardLink(e.target.value)} placeholder="例: /toeiken または /pages/about" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                    <input type="text" value={cardLink} onChange={(e) => setCardLink(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
                   </div>
                   <div>
                     <label className="block font-semibold mb-1">表示順（数字が小さいほど先頭）</label>
@@ -735,11 +901,20 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">カードの説明文</label>
-                  <input type="text" value={cardDesc} onChange={(e) => setCardDesc(e.target.value)} placeholder="簡単な概要説明" className="w-full px-3 py-1.5 border border-slate-300 rounded" />
+                  <input type="text" value={cardDesc} onChange={(e) => setCardDesc(e.target.value)} className="w-full px-3 py-1.5 border border-slate-300 rounded" />
                 </div>
+                <label className="flex items-center gap-2 font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={cardVisible}
+                    onChange={(e) => setCardVisible(e.target.checked)}
+                    className="rounded border-slate-300 text-blue-600"
+                  />
+                  トップページに表示する
+                </label>
                 <div className="flex justify-end gap-2 pt-1">
                   {editingCardId && (
-                    <button type="button" onClick={() => { setEditingCardId(null); setCardTitle(''); setCardDesc(''); setCardLink(''); }} className="px-3 py-1.5 border border-slate-300 bg-white rounded">
+                    <button type="button" onClick={() => { setEditingCardId(null); setCardTitle(''); setCardDesc(''); setCardLink(''); setCardOrder('0'); setCardVisible(true); }} className="px-3 py-1.5 border border-slate-300 bg-white rounded">
                       キャンセル
                     </button>
                   )}
@@ -755,11 +930,14 @@ export default function AdminPage() {
                     <div>
                       <span className="font-mono bg-slate-200 px-2 py-0.5 rounded text-[10px] mr-2">順序: {card.display_order}</span>
                       <span className="font-bold text-slate-800 mr-2">{card.title}</span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] ${card.is_visible ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                        {card.is_visible ? '表示中' : '非表示'}
+                      </span>
                       <span className="text-slate-500 font-mono text-[11px]">({card.link_url})</span>
                       <p className="text-slate-600 text-[11px] mt-0.5">{card.description}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => { setEditingCardId(card.id); setCardTitle(card.title); setCardDesc(card.description || ''); setCardLink(card.link_url); setCardOrder(String(card.display_order)); }} className="px-2.5 py-1 text-slate-700 border border-slate-300 bg-white rounded text-[11px]">編集</button>
+                      <button onClick={() => { setEditingCardId(card.id); setCardTitle(card.title); setCardDesc(card.description || ''); setCardLink(card.link_url); setCardOrder(String(card.display_order)); setCardVisible(card.is_visible); }} className="px-2.5 py-1 text-slate-700 border border-slate-300 bg-white rounded text-[11px]">編集</button>
                       <button onClick={() => handleDeleteCard(card.id)} className="px-2.5 py-1 text-red-600 border border-red-200 hover:bg-red-50 rounded text-[11px]">削除</button>
                     </div>
                   </div>
@@ -770,30 +948,82 @@ export default function AdminPage() {
             {/* 6. ユーザーアカウント & 権限管理 */}
             <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
-                [ 登録ユーザー・管理者権限管理 ]
+                [ 登録ユーザー・ロール管理 ]
               </h2>
+              <p className="text-xs text-slate-600 mb-4">
+                管理者は警察職員ロールを変更できます。管理者権限の付与・解除は主任管理者のみ行えます。
+              </p>
 
               <div className="border border-slate-200 rounded divide-y divide-slate-100 text-xs">
                 {userProfiles.map((user) => (
                   <div key={user.id} className="p-3 flex items-center justify-between gap-4">
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-slate-800">{user.full_name || '名前未設定'}</span>
-                        <span className="text-slate-500 font-mono text-[11px]">({user.email || user.id})</span>
+                        <span className="text-slate-500 font-mono text-[11px] break-all">({user.email || user.id})</span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${user.is_admin ? 'bg-blue-100 text-blue-800 border border-blue-300' : 'bg-slate-100 text-slate-700'}`}>
-                          {user.is_admin ? '管理者' : '一般ユーザー'}
+                          {user.is_super_admin ? '主任管理者' : user.is_admin ? '一般管理者' : '一般ユーザー'}
                         </span>
+                        {user.is_police_staff && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            警察職員
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleToggleAdminStatus(user.id, user.is_admin)}
-                      className={`px-3 py-1 rounded text-[11px] font-semibold ${user.is_admin ? 'border border-amber-300 text-amber-800 bg-amber-50' : 'border border-blue-300 text-blue-800 bg-blue-50'}`}
-                    >
-                      {user.is_admin ? '管理者権限を解除' : '管理者権限を付与'}
-                    </button>
+                    <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                      <button
+                        type="button"
+                        disabled={user.is_super_admin || updatingRoleId === user.id}
+                        onClick={() => handleUpdateUserRoles(user, {
+                          isAdmin: user.is_admin,
+                          isPoliceStaff: !user.is_police_staff,
+                        })}
+                        className="px-3 py-1 rounded text-[11px] font-semibold border border-emerald-300 text-emerald-800 bg-emerald-50 disabled:opacity-50"
+                      >
+                        {user.is_police_staff ? '警察職員を解除' : '警察職員に設定'}
+                      </button>
+                      {isSuperAdmin && (
+                        <button
+                          type="button"
+                          disabled={user.is_super_admin || updatingRoleId === user.id}
+                          onClick={() => handleUpdateUserRoles(user, {
+                            isAdmin: !user.is_admin,
+                            isPoliceStaff: user.is_police_staff,
+                          })}
+                          className={`px-3 py-1 rounded text-[11px] font-semibold ${user.is_admin ? 'border border-amber-300 text-amber-800 bg-amber-50' : 'border border-blue-300 text-blue-800 bg-blue-50'} disabled:opacity-50`}
+                        >
+                          {user.is_admin ? '管理者権限を解除' : '管理者権限を付与'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
+            </section>
+
+            <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
+              <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
+                [ 警察向けCommand system接続設定 ]
+              </h2>
+              <p className="text-xs text-slate-600 mb-4">
+                Command systemを起動しているPCのIPアドレスとポートを入力します。警察専用ページの110番通報ボタンから通報確認画面を開きます。
+              </p>
+              <form onSubmit={handleSaveCommandSystemUrl} className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="url"
+                  value={commandSystemUrl}
+                  onChange={(e) => setCommandSystemUrl(e.target.value)}
+                  aria-label="Command systemサーバーURL"
+                  className="flex-1 px-3 py-2 border border-slate-300 rounded text-xs font-mono"
+                />
+                <button type="submit" className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded">
+                  接続先を保存
+                </button>
+              </form>
+              <p className="text-[11px] text-slate-500 mt-2">
+                空欄にして保存すると接続先を解除します。警察職員の端末から設定URLへ接続できる必要があります。
+              </p>
             </section>
           </div>
         )}

@@ -1,4 +1,4 @@
-'export client';
+'use client';
 
 export default function Toast({ message, type = 'info', onClose }: { message: string; type?: 'success' | 'error' | 'info'; onClose: () => void }) {
   const bgColors = {

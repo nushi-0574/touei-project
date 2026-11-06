@@ -1,20 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
+
+const CONSENT_EVENT = 'cookie-consent-change';
+
+function subscribe(callback: () => void) {
+  window.addEventListener(CONSENT_EVENT, callback);
+  window.addEventListener('storage', callback);
+  return () => {
+    window.removeEventListener(CONSENT_EVENT, callback);
+    window.removeEventListener('storage', callback);
+  };
+}
+
+function getSnapshot() {
+  return localStorage.getItem('cookie_consent') !== 'accepted';
+}
+
+function getServerSnapshot() {
+  return false;
+}
 
 export default function CookieBanner() {
-  const [showBanner, setShowBanner] = useState(false);
-
-  useEffect(() => {
-    const consent = localStorage.getItem('cookie_consent');
-    if (!consent) {
-      setShowBanner(true);
-    }
-  }, []);
+  const showBanner = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const handleAccept = () => {
     localStorage.setItem('cookie_consent', 'accepted');
-    setShowBanner(false);
+    window.dispatchEvent(new Event(CONSENT_EVENT));
   };
 
   if (!showBanner) return null;

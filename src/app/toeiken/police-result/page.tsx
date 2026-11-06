@@ -5,33 +5,47 @@ import Header from '../../components/Header';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import Toast from '../../components/Toast';
 import { supabase } from '../../../lib/supabase';
+import { getDaysInMonth } from '../../../lib/dates';
+import { getErrorMessage } from '../../../lib/errors';
+import { useCurrentYear } from '../../../lib/useCurrentYear';
 
 type ExamResult = {
-  id: string;
   exam_number: string;
-  full_name: string;
-  birth_date: string;
-  status: string;
-  department?: string;
+  name: string;
+  result: string;
+  exam_name: string;
 };
+
+function isExamResult(data: unknown): data is ExamResult {
+  if (typeof data !== 'object' || data === null) return false;
+  return (
+    'exam_number' in data &&
+    typeof data.exam_number === 'string' &&
+    'name' in data &&
+    typeof data.name === 'string' &&
+    'result' in data &&
+    typeof data.result === 'string' &&
+    'exam_name' in data &&
+    typeof data.exam_name === 'string'
+  );
+}
 
 export default function PoliceResultPage() {
   const [examNumber, setExamNumber] = useState('');
   
-  // プルダウン用の生年月日ステート（年・月・日）
-  const [birthYear, setBirthYear] = useState('2010');
+  const baseYear = useCurrentYear();
+  const [birthYear, setBirthYear] = useState(String(baseYear - 20));
   const [birthMonth, setBirthMonth] = useState('3');
-  const [birthDay, setBirthDay] = useState('10');
+  const [birthDay, setBirthDay] = useState('1');
 
   const [resultData, setResultData] = useState<ExamResult | null>(null);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  const baseYear = 2026;
-  const years = Array.from({ length: 50 }, (_, i) => baseYear - i);
+  const years = Array.from({ length: 121 }, (_, i) => baseYear - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
-  const days = Array.from({ length: 31 }, (_, i) => i + 1);
+  const days = Array.from({ length: getDaysInMonth(Number(birthYear), Number(birthMonth)) }, (_, i) => i + 1);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,12 +63,11 @@ export default function PoliceResultPage() {
       const formattedDay = String(birthDay).padStart(2, '0');
       const birthDateString = `${birthYear}-${formattedMonth}-${formattedDay}`;
 
-      // police_exam_results テーブルから exam_number と birth_date で検索
       const { data, error } = await supabase
-        .from('police_exam_results')
-        .select('*')
-        .eq('exam_number', examNumber.trim())
-        .eq('birth_date', birthDateString)
+        .rpc('lookup_police_exam_result', {
+          p_exam_number: examNumber.trim(),
+          p_birth_date: birthDateString,
+        })
         .maybeSingle();
 
       if (error) {
@@ -62,24 +75,26 @@ export default function PoliceResultPage() {
       }
 
       if (data) {
+        if (!isExamResult(data)) throw new Error('合否照会の結果データ形式が正しくありません。');
         setResultData(data);
       }
       setSearched(true);
-    } catch (err: any) {
-      console.error('合否照会エラー:', err);
-      setToast({ message: '照会処理中にエラーが発生しました: ' + (err.message || ''), type: 'error' });
+    } catch (error) {
+      console.error('合否照会エラー:', error);
+      setToast({ message: '照会処理中にエラーが発生しました: ' + getErrorMessage(error, '不明なエラー'), type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
-  // statusの値（pass/fail等）を分かりやすい表示に変換
   const formatStatus = (status: string) => {
     const lower = status?.toLowerCase();
-    if (lower === 'pass' || lower === '合格') return '合格';
-    if (lower === 'fail' || lower === '不合格') return '不合格';
+    if (lower === 'pass') return '合格';
+    if (lower === 'fail') return '不合格';
     return status;
   };
+  const isPassingResult = (status: string) =>
+    formatStatus(status).includes('合格') && !formatStatus(status).includes('不合格');
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
@@ -119,7 +134,11 @@ export default function PoliceResultPage() {
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <select
                   value={birthYear}
-                  onChange={(e) => setBirthYear(e.target.value)}
+                  onChange={(e) => {
+                    const year = e.target.value;
+                    setBirthYear(year);
+                    setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(year), Number(birthMonth)))));
+                  }}
                   className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {years.map((y) => (
@@ -129,7 +148,11 @@ export default function PoliceResultPage() {
 
                 <select
                   value={birthMonth}
-                  onChange={(e) => setBirthMonth(e.target.value)}
+                  onChange={(e) => {
+                    const month = e.target.value;
+                    setBirthMonth(month);
+                    setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(birthYear), Number(month)))));
+                  }}
                   className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {months.map((m) => (
@@ -173,23 +196,18 @@ export default function PoliceResultPage() {
                     </div>
                     <div>
                       <span className="text-slate-500 block mb-0.5">氏名</span>
-                      <span className="font-bold text-slate-800">{resultData.full_name}</span>
+                      <span className="font-bold text-slate-800">{resultData.name}</span>
                     </div>
                   </div>
 
                   <div className="border-t border-slate-200 pt-3 flex items-center justify-between">
                     <div>
                       <span className="text-slate-500 block mb-1 text-xs">選考結果</span>
-                      <div className={`inline-block px-4 py-1.5 rounded font-bold text-sm tracking-widest ${formatStatus(resultData.status) === '合格' ? 'bg-blue-900 text-white' : 'bg-red-800 text-white'}`}>
-                        {formatStatus(resultData.status)}
+                      <div className={`inline-block px-4 py-1.5 rounded font-bold text-sm tracking-widest ${isPassingResult(resultData.result) ? 'bg-blue-900 text-white' : 'bg-red-800 text-white'}`}>
+                        {formatStatus(resultData.result)}
                       </div>
                     </div>
-                    {resultData.department && (
-                      <div>
-                        <span className="text-slate-500 block mb-1 text-xs">配属先等</span>
-                        <span className="text-xs font-bold text-slate-800">{resultData.department}</span>
-                      </div>
-                    )}
+                    <p className="text-xs text-slate-500">{resultData.exam_name}</p>
                   </div>
                 </div>
               ) : (
