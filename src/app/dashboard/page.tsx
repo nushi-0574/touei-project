@@ -164,7 +164,7 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 leading-relaxed mb-6">
-                    警察専用ページとCommand systemの110番通報機能を利用できます。
+                    110番緊急指令卓および警察無線通信システムを利用できます。
                   </p>
                 </div>
                 <Link
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <p className="mb-6 text-xs leading-relaxed text-slate-600">
-                    消防専用ページとCommand systemの119番通報機能を利用できます。
+                    消防災害指令ポータルおよび通信窓口を利用できます。
                   </p>
                 </div>
                 <Link

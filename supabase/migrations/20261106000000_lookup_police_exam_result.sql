@@ -23,8 +23,8 @@ as $function$
     result_row.exam_name::text,
     result_row.result::text
   from public.police_exam_results as result_row
-  where result_row.exam_number::text = p_exam_number
-    and result_row.birth_date::text = p_birth_date
+  where translate(trim(result_row.exam_number::text), '０１２３４５６７８９　- ', '0123456789') = translate(trim(p_exam_number), '０１２３４５６７８９　- ', '0123456789')
+    and result_row.birth_date::text = trim(p_birth_date)
   limit 1;
 $function$;
 

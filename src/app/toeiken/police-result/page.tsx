@@ -30,6 +30,16 @@ function isExamResult(data: unknown): data is ExamResult {
   );
 }
 
+function normalizeExamNumber(input: string): string {
+  if (!input) return '';
+  // 全角数字 (０-９) を半角数字 (0-9) へ変換
+  const halfWidth = input.replace(/[０-９]/g, (s) =>
+    String.fromCharCode(s.charCodeAt(0) - 0xfee0)
+  );
+  // 数字以外の文字（ハイフン、全半角スペースなど）を除去
+  return halfWidth.replace(/[^0-9]/g, '');
+}
+
 export default function PoliceResultPage() {
   const [examNumber, setExamNumber] = useState('');
   
@@ -49,9 +59,15 @@ export default function PoliceResultPage() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!examNumber.trim()) {
-      setToast({ message: '受考番号を入力してください。', type: 'error' });
+    const cleanExamNumber = normalizeExamNumber(examNumber);
+    if (!cleanExamNumber) {
+      setToast({ message: '受考番号を半角数字で入力してください。', type: 'error' });
       return;
+    }
+
+    // 全角やハイフンが入力されていた場合は自動補正した値を入力欄に反映
+    if (cleanExamNumber !== examNumber) {
+      setExamNumber(cleanExamNumber);
     }
 
     setLoading(true);
@@ -65,7 +81,7 @@ export default function PoliceResultPage() {
 
       const { data, error } = await supabase
         .rpc('lookup_police_exam_result', {
-          p_exam_number: examNumber.trim(),
+          p_exam_number: cleanExamNumber,
           p_birth_date: birthDateString,
         })
         .maybeSingle();
@@ -115,23 +131,27 @@ export default function PoliceResultPage() {
 
           <form onSubmit={handleSearch} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1">
                 受考番号 <span className="text-red-600">*</span>
               </label>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="off"
                 value={examNumber}
-                onChange={(e) => setExamNumber(e.target.value)}
+                onChange={(e) => setExamNumber(normalizeExamNumber(e.target.value))}
                 placeholder="例: 20260103"
-                className="w-full sm:w-1/2 px-3 py-2 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                className="w-full sm:w-1/2 px-3 py-2.5 min-h-[44px] border border-slate-300 rounded text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
               />
+              <p className="text-[11px] text-slate-500 mt-1">※全角数字を入力しても自動で半角数字に変換されます。</p>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1">
                 生年月日 <span className="text-red-600">*</span>
               </label>
-              <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2 text-base sm:text-sm">
                 <select
                   value={birthYear}
                   onChange={(e) => {
@@ -139,7 +159,7 @@ export default function PoliceResultPage() {
                     setBirthYear(year);
                     setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(year), Number(birthMonth)))));
                   }}
-                  className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2.5 min-h-[44px] border border-slate-300 rounded bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {years.map((y) => (
                     <option key={y} value={y}>{y}年</option>
@@ -153,7 +173,7 @@ export default function PoliceResultPage() {
                     setBirthMonth(month);
                     setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(birthYear), Number(month)))));
                   }}
-                  className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2.5 min-h-[44px] border border-slate-300 rounded bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {months.map((m) => (
                     <option key={m} value={m}>{m}月</option>
@@ -163,7 +183,7 @@ export default function PoliceResultPage() {
                 <select
                   value={birthDay}
                   onChange={(e) => setBirthDay(e.target.value)}
-                  className="px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2.5 min-h-[44px] border border-slate-300 rounded bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {days.map((d) => (
                     <option key={d} value={d}>{d}日</option>
@@ -176,7 +196,7 @@ export default function PoliceResultPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-2.5 bg-blue-700 hover:bg-blue-600 text-white text-xs font-bold rounded transition-colors shadow disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-3 min-h-[44px] bg-blue-700 hover:bg-blue-600 text-white text-sm font-bold rounded transition-colors shadow disabled:opacity-50"
               >
                 {loading ? '照会中...' : '結果を確認する'}
               </button>
@@ -189,7 +209,7 @@ export default function PoliceResultPage() {
               
               {resultData ? (
                 <div className="bg-slate-50 border border-slate-300 rounded p-6 space-y-3">
-                  <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div className="grid grid-cols-2 gap-4 text-xs sm:text-sm">
                     <div>
                       <span className="text-slate-500 block mb-0.5">受考番号</span>
                       <span className="font-mono font-bold text-slate-800">{resultData.exam_number}</span>
@@ -211,9 +231,9 @@ export default function PoliceResultPage() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-amber-50 border border-amber-200 rounded p-4 text-xs text-amber-900">
+                <div className="bg-amber-50 border border-amber-200 rounded p-4 text-xs sm:text-sm text-amber-900">
                   <p className="font-bold mb-1">該当するデータが見つかりませんでした。</p>
-                  <p className="text-[11px] text-amber-800">
+                  <p className="text-xs text-amber-800">
                     受考番号（例: 20260103）および登録されている生年月日（例: 2010-03-10）が正しいかご確認ください。
                   </p>
                 </div>

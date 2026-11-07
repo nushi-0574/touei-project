@@ -1051,26 +1051,16 @@ export default function AdminPage() {
 
             <section className="bg-white border border-slate-300 rounded shadow-sm p-6">
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
-                [ 警察向けCommand system接続設定 ]
+                [ 110番 警察緊急指令システム運用状態 ]
               </h2>
-              <p className="text-xs text-slate-600 mb-4">
-                Command systemを起動しているPCのIPアドレスとポートを入力します。警察専用ページの110番通報ボタンから通報確認画面を開きます。
+              <p className="text-xs text-slate-600 mb-2">
+                110番緊急指令システムは東栄県ポータル内製機能として統合運用されています。外部Command systemへの接続は解除されており、警察専用ページ（/police）の指令卓から直接発令・管理を行えます。
               </p>
-              <form onSubmit={handleSaveCommandSystemUrl} className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="url"
-                  value={commandSystemUrl}
-                  onChange={(e) => setCommandSystemUrl(e.target.value)}
-                  aria-label="Command systemサーバーURL"
-                  className="flex-1 px-3 py-2 border border-slate-300 rounded text-xs font-mono"
-                />
-                <button type="submit" className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded">
-                  接続先を保存
-                </button>
-              </form>
-              <p className="text-[11px] text-slate-500 mt-2">
-                空欄にして保存すると接続先を解除します。警察職員の端末から設定URLへ接続できる必要があります。
-              </p>
+              <div className="pt-2">
+                <Link href="/police" className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:underline">
+                  → 警察専用ページ（指令卓・警察無線）を開く
+                </Link>
+              </div>
             </section>
           </div>
         )}

@@ -5,6 +5,23 @@
   outline-offset: 3px;
 }
 
+/* iOS Safari 自動ズーム防止 */
+@media (max-width: 767px) {
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  input[type="date"],
+  input[type="datetime-local"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 .skip-link {
   position: fixed;
   left: 1rem;
@@ -24,7 +41,7 @@
 
 .loading-perimeter rect {
   animation: loading-perimeter-travel 2.4s linear infinite;
-  filter: drop-shadow(0 0 5px rgb(0 70 255 / 45%));
+  filter: drop-shadow(0 0 6px rgb(37 99 235 / 60%));
 }
 
 @keyframes loading-perimeter-travel {

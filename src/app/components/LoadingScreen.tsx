@@ -35,26 +35,26 @@ export default function LoadingScreen({ ariaHidden = false }: { ariaHidden?: boo
     >
       <svg
         aria-hidden="true"
-        className="loading-perimeter pointer-events-none fixed inset-0 z-[101] h-full w-full"
+        className="loading-perimeter pointer-events-none fixed inset-0 z-[101] h-full w-full overflow-visible"
         preserveAspectRatio="none"
       >
         <defs>
-          <linearGradient id="loading-perimeter-gradient">
-            <stop offset="0%" stopColor="#0046ff" stopOpacity="0" />
-            <stop offset="65%" stopColor="#0046ff" stopOpacity="0.55" />
-            <stop offset="100%" stopColor="#60a5fa" />
+          <linearGradient id="loading-perimeter-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.85" />
+            <stop offset="50%" stopColor="#2563eb" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="#60a5fa" stopOpacity="1" />
           </linearGradient>
         </defs>
         <rect
-          x="2"
-          y="2"
-          width="calc(100% - 4px)"
-          height="calc(100% - 4px)"
-          rx="14"
+          x="3"
+          y="3"
+          width="calc(100% - 6px)"
+          height="calc(100% - 6px)"
+          rx="12"
           pathLength="100"
           fill="none"
           stroke="url(#loading-perimeter-gradient)"
-          strokeWidth="3"
+          strokeWidth="4"
           strokeLinecap="round"
           strokeDasharray="22 78"
         />

@@ -56,8 +56,8 @@ as $function$
     result_row.exam_name::text,
     result_row.result::text
   from public.police_exam_results as result_row
-  where result_row.exam_number::text = p_exam_number
-    and result_row.birth_date::text = p_birth_date
+  where translate(trim(result_row.exam_number::text), '０１２３４５６７８９　- ', '0123456789') = translate(trim(p_exam_number), '０１２３４５６７８９　- ', '0123456789')
+    and result_row.birth_date::text = trim(p_birth_date)
   limit 1;
 $function$;
 
@@ -3087,6 +3087,94 @@ alter table public.legal_consents enable row level security;
 revoke all on public.legal_consents from public, anon, authenticated;
 grant all on public.legal_consents to service_role;
 
+-- -----------------------------------------------------------------------------
+-- 20261107001300_police_dispatch_system.sql
+-- -----------------------------------------------------------------------------
+create table if not exists public.police_dispatch_incidents (
+  id uuid primary key default gen_random_uuid(),
+  incident_number text not null,
+  title text not null,
+  category text not null default 'その他',
+  location text not null default '',
+  reporter_name text not null default '',
+  reporter_phone text not null default '',
+  details text not null default '',
+  priority text not null default '一般(C)',
+  status text not null default '通報受付',
+  assigned_unit text not null default '',
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_police_dispatch_incidents_status on public.police_dispatch_incidents(status);
+create index if not exists idx_police_dispatch_incidents_created_at on public.police_dispatch_incidents(created_at desc);
+
+alter table public.police_dispatch_incidents enable row level security;
+
+drop policy if exists "police_dispatch_incidents_select" on public.police_dispatch_incidents;
+create policy "police_dispatch_incidents_select"
+  on public.police_dispatch_incidents for select
+  using (
+    exists (
+      select 1 from public.profiles
+      where profiles.id = auth.uid()
+        and (profiles.is_admin = true or profiles.is_police_staff = true)
+    )
+  );
+
+drop policy if exists "police_dispatch_incidents_insert" on public.police_dispatch_incidents;
+create policy "police_dispatch_incidents_insert"
+  on public.police_dispatch_incidents for insert
+  with check (
+    exists (
+      select 1 from public.profiles
+      where profiles.id = auth.uid()
+        and (profiles.is_admin = true or profiles.is_police_staff = true)
+    )
+  );
+
+drop policy if exists "police_dispatch_incidents_update" on public.police_dispatch_incidents;
+create policy "police_dispatch_incidents_update"
+  on public.police_dispatch_incidents for update
+  using (
+    exists (
+      select 1 from public.profiles
+      where profiles.id = auth.uid()
+        and (profiles.is_admin = true or profiles.is_police_staff = true)
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.profiles
+      where profiles.id = auth.uid()
+        and (profiles.is_admin = true or profiles.is_police_staff = true)
+    )
+  );
+
+drop policy if exists "police_dispatch_incidents_delete" on public.police_dispatch_incidents;
+create policy "police_dispatch_incidents_delete"
+  on public.police_dispatch_incidents for delete
+  using (
+    exists (
+      select 1 from public.profiles
+      where profiles.id = auth.uid()
+        and (profiles.is_admin = true or profiles.is_police_staff = true)
+    )
+  );
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'police_dispatch_incidents'
+  ) then
+    alter publication supabase_realtime add table public.police_dispatch_incidents;
+  end if;
+end $$;
+
 -- Final verification summary (false indicates a required migration object is absent).
 SELECT object_name, to_regclass(object_name) IS NOT NULL AS installed
 FROM (VALUES
@@ -3094,6 +3182,7 @@ FROM (VALUES
   ('public.staff_permissions'),
   ('public.staff_roles'),
   ('public.police_radio_messages'),
+  ('public.police_dispatch_incidents'),
   ('public.resident_conversations'),
   ('public.resident_conversation_members'),
   ('public.resident_messages'),
