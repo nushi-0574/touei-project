@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import PoliceRadioVoice from './PoliceRadioVoice';
+import { Radio, Send, Clock, AlertCircle } from 'lucide-react';
 
 const CHANNELS = ['県内', 'Ch1', 'CH2', '非常用', '教育'] as const;
 type RadioChannel = (typeof CHANNELS)[number];
@@ -116,11 +117,34 @@ export default function PoliceRadio() {
   }
 
   return (
-    <section className="overflow-hidden rounded border border-slate-300 bg-white shadow-sm">
-      <div className="border-b border-slate-200 p-5 sm:p-6">
-        <h2 className="text-lg font-bold text-slate-900">警察無線</h2>
-        <p className="mt-1 text-sm text-slate-600">チャンネルを選択して、警察職員間でテキスト・音声連絡できます。</p>
-        <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="無線チャンネル">
+    <section className="bg-slate-900 border-2 border-slate-700 text-slate-100 font-sans shadow-lg overflow-hidden">
+      {/* 統括ヘッダー */}
+      <div className="bg-slate-950 border-b border-slate-800 p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-slate-800 border border-slate-700 text-blue-400">
+              <Radio className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[10px] font-mono tracking-widest text-blue-400 font-bold uppercase block">
+                POLICE RADIO SYSTEM
+              </span>
+              <h2 className="text-base font-bold text-slate-100">
+                警察無線統括通信卓 (県内・各種通信回線)
+              </h2>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="text-slate-400">現在選択回線:</span>
+            <span className="bg-blue-950 text-blue-200 border border-blue-800 px-2.5 py-1 font-bold">
+              {channel} チャンネル
+            </span>
+          </div>
+        </div>
+
+        {/* チャンネル切替タブ */}
+        <div className="mt-4 flex flex-wrap gap-1.5" role="tablist" aria-label="無線チャンネル">
           {CHANNELS.map((item) => (
             <button
               key={item}
@@ -128,13 +152,13 @@ export default function PoliceRadio() {
               role="tab"
               aria-selected={channel === item}
               onClick={() => selectChannel(item)}
-              className={`min-h-10 rounded border px-4 text-sm font-semibold ${
+              className={`px-4 py-1.5 text-xs font-bold border transition-colors ${
                 channel === item
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                  ? 'bg-blue-900 text-white border-blue-600 shadow'
+                  : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
               }`}
             >
-              {item}
+              {item} チャンネル
             </button>
           ))}
         </div>
@@ -142,47 +166,59 @@ export default function PoliceRadio() {
 
       <PoliceRadioVoice key={channel} channel={channel} />
 
+      {/* 無線ログ表示領域 */}
       <div
-        className="h-80 space-y-3 overflow-y-auto bg-slate-50 p-4"
+        className="h-80 space-y-2.5 overflow-y-auto bg-slate-950 p-4 font-mono text-xs border-b border-slate-800"
         role="tabpanel"
-        aria-label={`${channel}チャンネルのメッセージ`}
+        aria-label={`${channel}チャンネルの通信ログ`}
         aria-live="polite"
       >
         {loading ? (
-          <p className="text-center text-sm text-slate-500">無線を接続しています...</p>
+          <p className="text-center text-slate-500 py-12">暗号化無線回線に接続中...</p>
         ) : messages.length === 0 ? (
-          <p className="py-12 text-center text-sm text-slate-500">このチャンネルにメッセージはありません。</p>
+          <p className="py-12 text-center text-slate-500">{channel}チャンネルの通信ログはありません。</p>
         ) : messages.map((message) => (
-          <article key={message.id} className="rounded border border-slate-200 bg-white p-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <p className="text-sm font-bold text-slate-800">{message.sender_name}</p>
-              <time className="text-xs text-slate-500" dateTime={message.created_at}>
+          <article key={message.id} className="bg-slate-900 border border-slate-800 p-3 space-y-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-1">
+              <span className="font-bold text-slate-200">{message.sender_name}</span>
+              <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                <Clock className="w-3 h-3" />
                 {new Date(message.created_at).toLocaleString('ja-JP')}
-              </time>
+              </span>
             </div>
-            <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-800">{message.body}</p>
+            <p className="whitespace-pre-wrap break-words text-slate-300 leading-relaxed font-sans text-xs pt-1">
+              {message.body}
+            </p>
           </article>
         ))}
-        {errorMessage && <p role="alert" className="rounded bg-red-50 p-3 text-sm text-red-800">{errorMessage}</p>}
+
+        {errorMessage && (
+          <div role="alert" className="bg-red-950 border border-red-800 p-3 text-red-200 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
       </div>
 
-      <form onSubmit={sendMessage} className="flex items-end gap-3 border-t border-slate-200 p-4">
-        <label className="sr-only" htmlFor="police-radio-message">無線メッセージ</label>
+      {/* 送信フォーム */}
+      <form onSubmit={sendMessage} className="flex items-stretch gap-2 bg-slate-950 p-3">
+        <label className="sr-only" htmlFor="police-radio-message">無線伝送メッセージ</label>
         <textarea
           id="police-radio-message"
           value={draft}
           onChange={(event) => setDraft(event.target.value.slice(0, 1000))}
           maxLength={1000}
           rows={2}
-          placeholder={`${channel}へメッセージを送信`}
-          className="min-h-12 min-w-0 flex-1 resize-y rounded border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          placeholder={`${channel} チャンネルへ無線通信メッセージを伝送`}
+          className="min-h-11 min-w-0 flex-1 resize-y bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-none"
         />
         <button
           type="submit"
           disabled={sending || !draft.trim()}
-          className="min-h-12 rounded bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+          className="px-5 bg-blue-800 hover:bg-blue-700 text-white text-xs font-bold border border-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
         >
-          {sending ? '送信中...' : '送信'}
+          <Send className="w-3.5 h-3.5" />
+          <span>{sending ? '送信中...' : '送信'}</span>
         </button>
       </form>
     </section>

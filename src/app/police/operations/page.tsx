@@ -10,6 +10,7 @@ import { getErrorMessage } from '../../../lib/errors';
 import { supabase } from '../../../lib/supabase';
 import PoliceRadio from '../PoliceRadio';
 import PoliceDispatchSystem from '../PoliceDispatchSystem';
+import { Shield, Monitor, Radio, Database, Activity, ArrowLeft } from 'lucide-react';
 
 type TabKey = 'dispatch' | 'radio' | 'database' | 'system';
 
@@ -87,7 +88,7 @@ export default function PoliceOperationsPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-slate-200 text-slate-900 font-mono">
+    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans">
       <Header />
 
       <main className="max-w-7xl mx-auto px-2 sm:px-4 py-4 space-y-4">
@@ -99,140 +100,134 @@ export default function PoliceOperationsPage() {
         {loading ? (
           <ContentSkeleton />
         ) : errorMessage ? (
-          <p role="alert" className="text-xs font-bold text-red-900 bg-red-100 border border-red-400 p-4">
-            [ERROR] {errorMessage}
+          <p role="alert" className="text-xs font-bold text-red-200 bg-red-950 border border-red-800 p-4">
+            [エラー] {errorMessage}
           </p>
         ) : !hasAccess ? (
-          <section className="bg-slate-100 border-2 border-slate-600 p-6 text-center">
-            <h1 className="text-base font-bold text-slate-900">[アクセス拒否] 警察業務専用端末</h1>
-            <p className="text-xs text-slate-700 mt-2">SECURITY CHECK FAILED: 管理者または警察職員ロールが必要です。</p>
-            <Link href="/police" className="inline-block mt-4 text-xs font-bold text-slate-800 underline">
-              [ 警察総合メニューへ戻る ]
+          <section className="bg-slate-950 border border-slate-800 p-6 text-center">
+            <h1 className="text-base font-bold text-slate-100">警察業務専用端末</h1>
+            <p className="text-xs text-slate-400 mt-2">SECURITY CHECK FAILED: 管理者または警察職員ロールが必要です。</p>
+            <Link href="/police" className="inline-block mt-4 text-xs font-bold text-blue-400 hover:underline">
+              ← 警察総合メニューへ戻る
             </Link>
           </section>
         ) : (
-          /* レトロ業務用端末ウインドウフレーム (モノクロ・濃淡デザイン) */
-          <div className="bg-slate-300 border-2 border-slate-700 shadow-md">
+          /* 重厚・高信頼 警察業務端末コンソール (ダークスレート・モノクロ高視認性UI) */
+          <div className="bg-slate-950 border-2 border-slate-700 shadow-2xl">
 
-            {/* ウィンドウタイトルバー */}
-            <div className="bg-slate-800 text-slate-100 px-3 py-1.5 flex items-center justify-between border-b-2 border-slate-700 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="bg-slate-600 text-white px-1.5 py-0.5 text-[10px] font-bold border border-slate-500">
-                  SYS.V2.6
-                </span>
-                <span className="font-bold tracking-wider">
-                  東栄県警察本部 統合警備・指令業務処理端末 [POLICE-TERMINAL-01]
-                </span>
-              </div>
-              <div className="flex items-center gap-3 text-[11px] font-mono">
-                <span className="hidden md:inline text-slate-300">ROLE: {policeOrgRole}</span>
-                <span className="text-emerald-400">● ONLINE</span>
-                <div className="flex items-center gap-1 border border-slate-600 px-1 bg-slate-900">
-                  <span className="text-slate-300">[ _ ]</span>
-                  <span className="text-slate-300">[ 口 ]</span>
-                  <span className="text-red-400 font-bold">[ X ]</span>
+            {/* システムヘッダーバー */}
+            <div className="bg-slate-900 text-slate-100 px-4 py-2.5 flex flex-wrap items-center justify-between border-b border-slate-800 text-xs">
+              <div className="flex items-center gap-3">
+                <Shield className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold tracking-wider text-slate-100">
+                      東栄県警察本部 警備・指令業務統合端末
+                    </span>
+                    <span className="bg-slate-800 text-slate-300 px-2 py-0.5 text-[10px] font-mono border border-slate-700">
+                      TERMINAL-01
+                    </span>
+                  </div>
                 </div>
               </div>
+              <div className="flex items-center gap-4 text-[11px] font-mono">
+                <span className="text-slate-300">役職区分: <strong className="text-emerald-400">{policeOrgRole}</strong></span>
+                <span className="text-emerald-400 font-bold">● 庁内LAN接続中</span>
+                <span className="text-slate-400">{currentTimeStr}</span>
+              </div>
             </div>
 
-            {/* メニューバー (レトロスタイル) */}
-            <div className="bg-slate-200 border-b border-slate-500 px-3 py-1 flex flex-wrap gap-4 text-xs font-bold text-slate-800 border-t border-t-white">
-              <span className="hover:bg-slate-400 px-1.5 py-0.5 cursor-pointer">ファイル(<u>F</u>)</span>
-              <span className="hover:bg-slate-400 px-1.5 py-0.5 cursor-pointer">編集(<u>E</u>)</span>
-              <span className="hover:bg-slate-400 px-1.5 py-0.5 cursor-pointer">指令(<u>D</u>)</span>
-              <span className="hover:bg-slate-400 px-1.5 py-0.5 cursor-pointer">無線(<u>R</u>)</span>
-              <span className="hover:bg-slate-400 px-1.5 py-0.5 cursor-pointer">照会(<u>S</u>)</span>
-              <span className="hover:bg-slate-400 px-1.5 py-0.5 cursor-pointer">ツール(<u>T</u>)</span>
-              <span className="hover:bg-slate-400 px-1.5 py-0.5 cursor-pointer">ヘルプ(<u>H</u>)</span>
-            </div>
-
-            {/* 機能タブ切り替えバー (クラシックタブボタン) */}
-            <div className="bg-slate-300 px-2 pt-2 border-b border-slate-500 flex flex-wrap gap-1 text-xs font-bold">
+            {/* タブ切り替えバー */}
+            <div className="bg-slate-900 px-2 pt-2 border-b border-slate-800 flex flex-wrap gap-1 text-xs font-bold">
               <button
                 type="button"
                 onClick={() => setActiveTab('dispatch')}
-                className={`px-4 py-2 border-t-2 border-x-2 transition-colors ${
+                className={`px-4 py-2 border-t border-x transition-colors flex items-center gap-2 ${
                   activeTab === 'dispatch'
-                    ? 'bg-slate-100 border-slate-700 text-slate-950 border-b-2 border-b-slate-100 -mb-px z-10'
-                    : 'bg-slate-400 border-slate-600 text-slate-800 hover:bg-slate-350'
+                    ? 'bg-slate-950 border-slate-700 text-emerald-400 border-b-2 border-b-emerald-500 -mb-px z-10'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                 }`}
               >
-                [ F1: 110番緊急指令台 ]
+                <Monitor className="w-3.5 h-3.5" />
+                <span>110番緊急指令台</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('radio')}
-                className={`px-4 py-2 border-t-2 border-x-2 transition-colors ${
+                className={`px-4 py-2 border-t border-x transition-colors flex items-center gap-2 ${
                   activeTab === 'radio'
-                    ? 'bg-slate-100 border-slate-700 text-slate-950 border-b-2 border-b-slate-100 -mb-px z-10'
-                    : 'bg-slate-400 border-slate-600 text-slate-800 hover:bg-slate-350'
+                    ? 'bg-slate-950 border-slate-700 text-emerald-400 border-b-2 border-b-emerald-500 -mb-px z-10'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                 }`}
               >
-                [ F2: 警察無線統括卓 ]
+                <Radio className="w-3.5 h-3.5" />
+                <span>警察無線統括卓</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('database')}
-                className={`px-4 py-2 border-t-2 border-x-2 transition-colors ${
+                className={`px-4 py-2 border-t border-x transition-colors flex items-center gap-2 ${
                   activeTab === 'database'
-                    ? 'bg-slate-100 border-slate-700 text-slate-950 border-b-2 border-b-slate-100 -mb-px z-10'
-                    : 'bg-slate-400 border-slate-600 text-slate-800 hover:bg-slate-350'
+                    ? 'bg-slate-950 border-slate-700 text-emerald-400 border-b-2 border-b-emerald-500 -mb-px z-10'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                 }`}
               >
-                [ F3: 事件・台帳照会 ]
+                <Database className="w-3.5 h-3.5" />
+                <span>事件・台帳照会DB</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('system')}
-                className={`px-4 py-2 border-t-2 border-x-2 transition-colors ${
+                className={`px-4 py-2 border-t border-x transition-colors flex items-center gap-2 ${
                   activeTab === 'system'
-                    ? 'bg-slate-100 border-slate-700 text-slate-950 border-b-2 border-b-slate-100 -mb-px z-10'
-                    : 'bg-slate-400 border-slate-600 text-slate-800 hover:bg-slate-350'
+                    ? 'bg-slate-950 border-slate-700 text-emerald-400 border-b-2 border-b-emerald-500 -mb-px z-10'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                 }`}
               >
-                [ F4: 端末ステータス ]
+                <Activity className="w-3.5 h-3.5" />
+                <span>端末ステータス</span>
               </button>
             </div>
 
             {/* タブコンテンツエリア */}
-            <div className="bg-slate-100 p-4 min-h-[500px]">
+            <div className="bg-slate-950 p-4 min-h-[520px]">
 
-              {/* F1: 110番緊急指令台 */}
+              {/* 110番緊急指令台 */}
               {activeTab === 'dispatch' && (
                 <div className="space-y-4">
-                  <div className="bg-slate-800 text-white p-3 border border-slate-700 flex justify-between items-center text-xs">
-                    <span className="font-bold">▶ モード: 110番緊急指令・リアルタイム監視卓</span>
-                    <span className="text-slate-300">STATUS: READY / LIVE SYNC</span>
+                  <div className="bg-slate-900 text-slate-200 px-3 py-2 border border-slate-800 flex justify-between items-center text-xs font-mono">
+                    <span className="font-bold text-emerald-400">STATUS: 110番緊急指令・リアルタイム監視卓 動作中</span>
+                    <span className="text-slate-400">REALTIME DISPATCH ENGINE</span>
                   </div>
                   <PoliceDispatchSystem />
                 </div>
               )}
 
-              {/* F2: 警察無線統括卓 */}
+              {/* 警察無線統括卓 */}
               {activeTab === 'radio' && (
                 <div className="space-y-4">
-                  <div className="bg-slate-800 text-white p-3 border border-slate-700 flex justify-between items-center text-xs">
-                    <span className="font-bold">▶ モード: 警察無線通信統括卓 (5チャンネル暗号化回線)</span>
-                    <span className="text-slate-300">ENCRYPTION: ACTIVE</span>
+                  <div className="bg-slate-900 text-slate-200 px-3 py-2 border border-slate-800 flex justify-between items-center text-xs font-mono">
+                    <span className="font-bold text-blue-400">STATUS: 警察無線暗号化回線 (全5回線) 正常接続中</span>
+                    <span className="text-slate-400">RADIO FREQUENCY ENCRYPTED</span>
                   </div>
                   <PoliceRadio />
                 </div>
               )}
 
-              {/* F3: 事件・台帳照会 */}
+              {/* 事件・台帳照会 */}
               {activeTab === 'database' && (
-                <div className="space-y-4 text-xs">
-                  <div className="bg-slate-800 text-white p-3 border border-slate-700 flex justify-between items-center">
-                    <span className="font-bold">▶ モード: 事件簿・台帳統合照会データベース</span>
-                    <span className="text-slate-300">DB: TOEI-POLICE-MAIN</span>
+                <div className="space-y-4 text-xs font-mono">
+                  <div className="bg-slate-900 text-slate-200 px-3 py-2 border border-slate-800 flex justify-between items-center">
+                    <span className="font-bold text-slate-100">事件簿・台帳統合照会データベース</span>
+                    <span className="text-slate-400">DB: TOEI-POLICE-MAIN-STORE</span>
                   </div>
 
-                  <div className="bg-slate-200 p-3 border border-slate-400 space-y-2">
-                    <label className="block font-bold text-slate-800">
-                      検索キーワード (事件番号 / 場所 / 氏名 / 備考)
+                  <div className="bg-slate-900 p-3.5 border border-slate-800 space-y-2">
+                    <label className="block font-bold text-slate-300">
+                      照会キーワード検索 (管理番号 / 発生場所 / 氏名 / 概要)
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -240,114 +235,115 @@ export default function PoliceOperationsPage() {
                         value={dbSearchQuery}
                         onChange={(e) => setDbSearchQuery(e.target.value)}
                         placeholder="例: 110-20261107 / 中央町 / 交通事故"
-                        className="flex-1 px-3 py-1.5 border border-slate-600 bg-white text-xs font-mono"
+                        className="flex-1 px-3 py-2 border border-slate-700 bg-slate-950 text-slate-100 text-xs focus:outline-none focus:border-blue-500"
                       />
                       <button
                         type="button"
-                        className="px-4 py-1.5 bg-slate-800 text-white font-bold border border-slate-900 hover:bg-slate-700"
+                        className="px-5 py-2 bg-slate-800 text-slate-100 font-bold border border-slate-700 hover:bg-slate-700 transition-colors"
                       >
-                        照会実行 [ENTER]
+                        照会検索
                       </button>
                     </div>
                   </div>
 
                   {/* 濃淡高密度データテーブル */}
-                  <div className="border border-slate-600 bg-white overflow-x-auto">
+                  <div className="border border-slate-800 bg-slate-950 overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs font-mono">
                       <thead>
-                        <tr className="bg-slate-700 text-white border-b border-slate-800">
-                          <th className="p-2 border-r border-slate-600">ID / 番号</th>
-                          <th className="p-2 border-r border-slate-600">区分</th>
-                          <th className="p-2 border-r border-slate-600">件名・概要</th>
-                          <th className="p-2 border-r border-slate-600">発生場所</th>
-                          <th className="p-2 border-r border-slate-600">優先度</th>
-                          <th className="p-2 border-r border-slate-600">状態</th>
-                          <th className="p-2">日時</th>
+                        <tr className="bg-slate-900 text-slate-200 border-b border-slate-800">
+                          <th className="p-2.5 border-r border-slate-800">管理番号</th>
+                          <th className="p-2.5 border-r border-slate-800">事案区分</th>
+                          <th className="p-2.5 border-r border-slate-800">件名・概要</th>
+                          <th className="p-2.5 border-r border-slate-800">発生場所</th>
+                          <th className="p-2.5 border-r border-slate-800">指令区分</th>
+                          <th className="p-2.5 border-r border-slate-800">状態</th>
+                          <th className="p-2.5">登録日時</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr className="border-b border-slate-300 bg-slate-50 hover:bg-slate-200">
-                          <td className="p-2 border-r border-slate-300 font-bold">110-20261107-001</td>
-                          <td className="p-2 border-r border-slate-300">交通事故</td>
-                          <td className="p-2 border-r border-slate-300 font-bold">東栄駅前での器物破損・接触事故</td>
-                          <td className="p-2 border-r border-slate-300">東栄市中央町1-2-3</td>
-                          <td className="p-2 border-r border-slate-300 font-bold text-red-700">緊急(A)</td>
-                          <td className="p-2 border-r border-slate-300 font-bold">対応中</td>
-                          <td className="p-2">2026/11/07 21:30</td>
+                        <tr className="border-b border-slate-800/80 bg-slate-900/50 hover:bg-slate-900">
+                          <td className="p-2.5 border-r border-slate-800 font-bold text-slate-200">110-20261107-001</td>
+                          <td className="p-2.5 border-r border-slate-800">交通事故</td>
+                          <td className="p-2.5 border-r border-slate-800 font-bold text-slate-100">東栄駅前における器物破損・接触事故</td>
+                          <td className="p-2.5 border-r border-slate-800">東栄市中央町1-2-3</td>
+                          <td className="p-2.5 border-r border-slate-800 font-bold text-red-400">第1種(緊急)</td>
+                          <td className="p-2.5 border-r border-slate-800 font-bold text-blue-300">現場対応中</td>
+                          <td className="p-2.5 text-slate-400">2026/11/07 21:30</td>
                         </tr>
-                        <tr className="border-b border-slate-300 bg-white hover:bg-slate-200">
-                          <td className="p-2 border-r border-slate-300 font-bold">110-20261107-002</td>
-                          <td className="p-2 border-r border-slate-300">不審者</td>
-                          <td className="p-2 border-r border-slate-300 font-bold">公園付近での不審人物徘徊通報</td>
-                          <td className="p-2 border-r border-slate-300">東栄市緑ヶ丘3-1</td>
-                          <td className="p-2 border-r border-slate-300 font-bold text-amber-700">重要(B)</td>
-                          <td className="p-2 border-r border-slate-300 font-bold">現場急行指示</td>
-                          <td className="p-2">2026/11/07 20:15</td>
+                        <tr className="border-b border-slate-800/80 bg-slate-950 hover:bg-slate-900">
+                          <td className="p-2.5 border-r border-slate-800 font-bold text-slate-200">110-20261107-002</td>
+                          <td className="p-2.5 border-r border-slate-800">不審者</td>
+                          <td className="p-2.5 border-r border-slate-800 font-bold text-slate-100">公園付近における不審人物徘徊通報</td>
+                          <td className="p-2.5 border-r border-slate-800">東栄市緑ヶ丘3-1</td>
+                          <td className="p-2.5 border-r border-slate-800 font-bold text-amber-400">第2種(重要)</td>
+                          <td className="p-2.5 border-r border-slate-800 font-bold text-amber-300">現場急行指示</td>
+                          <td className="p-2.5 text-slate-400">2026/11/07 20:15</td>
                         </tr>
-                        <tr className="border-b border-slate-300 bg-slate-50 hover:bg-slate-200">
-                          <td className="p-2 border-r border-slate-300 font-bold">110-20261106-089</td>
-                          <td className="p-2 border-r border-slate-300">落し物</td>
-                          <td className="p-2 border-r border-slate-300">商業施設での財布拾得物届出</td>
-                          <td className="p-2 border-r border-slate-300">東栄本町モール</td>
-                          <td className="p-2 border-r border-slate-300">一般(C)</td>
-                          <td className="p-2 border-r border-slate-300 font-bold text-emerald-800">完了</td>
-                          <td className="p-2">2026/11/06 18:40</td>
+                        <tr className="border-b border-slate-800/80 bg-slate-900/50 hover:bg-slate-900">
+                          <td className="p-2.5 border-r border-slate-800 font-bold text-slate-200">110-20261106-089</td>
+                          <td className="p-2.5 border-r border-slate-800">落し物</td>
+                          <td className="p-2.5 border-r border-slate-800 text-slate-300">商業施設における財布拾得届出</td>
+                          <td className="p-2.5 border-r border-slate-800">東栄本町モール</td>
+                          <td className="p-2.5 border-r border-slate-800 text-slate-300">第3種(一般)</td>
+                          <td className="p-2.5 border-r border-slate-800 font-bold text-emerald-400">事案完了</td>
+                          <td className="p-2.5 text-slate-400">2026/11/06 18:40</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
-                  <p className="text-[11px] text-slate-500 text-right">※表示中データ: 最新3件 / 全データベース同期完了</p>
+                  <p className="text-[11px] text-slate-500 text-right">※表示中データ: 直近3件 / データ同期完了</p>
                 </div>
               )}
 
-              {/* F4: 端末ステータス */}
+              {/* 端末ステータス */}
               {activeTab === 'system' && (
-                <div className="space-y-4 text-xs">
-                  <div className="bg-slate-800 text-white p-3 border border-slate-700 flex justify-between items-center">
-                    <span className="font-bold">▶ モード: 警察業務端末 システム・ネットワークステータス</span>
-                    <span className="text-slate-300">SYSTEM DIAGNOSTICS</span>
+                <div className="space-y-4 text-xs font-mono">
+                  <div className="bg-slate-900 text-slate-200 px-3 py-2 border border-slate-800 flex justify-between items-center">
+                    <span className="font-bold">端末診断・通信ネットワーク情報</span>
+                    <span className="text-slate-400">SYSTEM DIAGNOSTICS</span>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-slate-200 border border-slate-400 p-4 space-y-2">
-                      <h4 className="font-bold text-slate-900 border-b border-slate-400 pb-1">[ 端末識別情報 ]</h4>
-                      <p><span className="font-bold">Terminal ID:</span> POLICE-OPS-TERMINAL-01</p>
-                      <p><span className="font-bold">Location:</span> 東栄県警察本部 通信指令課 第1指令台</p>
-                      <p><span className="font-bold">System OS:</span> Toei Police Secure Enterprise Terminal V2.6</p>
-                      <p><span className="font-bold">Client Protocol:</span> HTTPS / WebSockets (TLS 1.3)</p>
+                    <div className="bg-slate-900 border border-slate-800 p-4 space-y-2">
+                      <h4 className="font-bold text-slate-200 border-b border-slate-800 pb-1.5">端末識別情報</h4>
+                      <p><span className="text-slate-400 font-bold">Terminal ID:</span> POLICE-OPS-TERMINAL-01</p>
+                      <p><span className="text-slate-400 font-bold">Location:</span> 東栄県警察本部 通信指令課 第1指令台</p>
+                      <p><span className="text-slate-400 font-bold">System OS:</span> Toei Police Secure Enterprise Terminal V2.6</p>
+                      <p><span className="text-slate-400 font-bold">Network:</span> 警察庁内LAN 閉域接続 (TLS 1.3)</p>
                     </div>
 
-                    <div className="bg-slate-200 border border-slate-400 p-4 space-y-2">
-                      <h4 className="font-bold text-slate-900 border-b border-slate-400 pb-1">[ セキュリティ・暗号化 ]</h4>
-                      <p><span className="font-bold">Authentication:</span> Supabase Auth (Session Token OK)</p>
-                      <p><span className="font-bold">Role Assignment:</span> {policeOrgRole}</p>
-                      <p><span className="font-bold">Realtime Channel:</span> Active (2 Subscriptions)</p>
-                      <p><span className="font-bold">System Time:</span> {currentTimeStr}</p>
+                    <div className="bg-slate-900 border border-slate-800 p-4 space-y-2">
+                      <h4 className="font-bold text-slate-200 border-b border-slate-800 pb-1.5">セキュリティ・認証状態</h4>
+                      <p><span className="text-slate-400 font-bold">Authentication:</span> Supabase Auth (Session OK)</p>
+                      <p><span className="text-slate-400 font-bold">Role Assignment:</span> {policeOrgRole}</p>
+                      <p><span className="text-slate-400 font-bold">Realtime Engine:</span> Active (2 Subscriptions)</p>
+                      <p><span className="text-slate-400 font-bold">System Time:</span> {currentTimeStr}</p>
                     </div>
                   </div>
 
-                  <div className="bg-slate-900 text-emerald-400 p-3 font-mono text-[11px] border border-slate-700 leading-relaxed">
-                    <p>[SYS-LOG 21:58:01] INITIALIZING POLICE OPERATIONS SYSTEM... OK</p>
-                    <p>[SYS-LOG 21:58:02] CONNECTING REALTIME CHANNEL 'police_dispatch_incidents'... CONNECTED</p>
-                    <p>[SYS-LOG 21:58:02] CONNECTING REALTIME CHANNEL 'police_radio_messages'... CONNECTED</p>
-                    <p>[SYS-LOG 21:58:03] DISPATCH CONTROLLER READY. SYSTEM HEALTH: 100%</p>
+                  <div className="bg-slate-900 text-emerald-400 p-3.5 font-mono text-[11px] border border-slate-800 leading-relaxed">
+                    <p>[SYS-LOG] INITIALIZING POLICE OPERATIONS SYSTEM... OK</p>
+                    <p>[SYS-LOG] CONNECTING REALTIME CHANNEL 'police_dispatch_incidents'... CONNECTED</p>
+                    <p>[SYS-LOG] CONNECTING REALTIME CHANNEL 'police_radio_messages'... CONNECTED</p>
+                    <p>[SYS-LOG] DISPATCH CONTROLLER READY. SYSTEM HEALTH: 100%</p>
                   </div>
                 </div>
               )}
 
             </div>
 
-            {/* ボトムステータスバー (レトロ端末フッター) */}
-            <div className="bg-slate-800 text-slate-200 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] border-t border-slate-700 font-mono">
+            {/* ボトムステータスバー */}
+            <div className="bg-slate-900 text-slate-300 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] border-t border-slate-800 font-mono">
               <div className="flex items-center gap-3">
-                <span className="text-emerald-400 font-bold">[ONLINE]</span>
+                <span className="text-emerald-400 font-bold">● ONLINE</span>
                 <span>TERM-ID: POLICE-OPS-01</span>
-                <span className="hidden sm:inline">| DB: TOEI-SUPABASE</span>
+                <span className="hidden sm:inline">| DB: TOEI-POLICE-DB</span>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <span>TIME: {currentTimeStr}</span>
-                <Link href="/police" className="text-slate-300 hover:text-white underline">
-                  [ 総合メニューへ ]
+                <Link href="/police" className="text-blue-400 hover:underline font-bold flex items-center gap-1">
+                  <ArrowLeft className="w-3 h-3" />
+                  <span>総合メニューへ</span>
                 </Link>
               </div>
             </div>
