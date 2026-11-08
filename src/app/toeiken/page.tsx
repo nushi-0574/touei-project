@@ -37,20 +37,20 @@ export default function ToeikenAuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans">
       <Header />
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
-        <Breadcrumbs items={[{ label: '東栄県ユーザー認証' }]} />
+      <main className="max-w-xl mx-auto px-4 sm:px-6 py-12 flex-1 w-full">
+        <Breadcrumbs items={[{ label: '東栄アカウント認証' }]} />
 
-        <div className="bg-white border border-slate-300 rounded shadow-sm p-8">
-          <div className="mb-6 pb-4 border-b border-slate-200">
-            <h1 className="text-xl font-bold text-slate-900">東栄アカウント</h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Googleアカウントまたはメールアドレスで東栄アカウントを作成・ログインできます。
-            </p>
+        <div className="bg-white border border-slate-300 rounded-sm p-6 space-y-6">
+          <div className="border-b border-slate-200 pb-3">
+            <span className="text-xs font-bold text-[#0046ff] bg-blue-50 border border-blue-200 px-2 py-0.5 inline-block mb-1">
+              統合認証
+            </span>
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight">東栄アカウント 認証窓口</h1>
           </div>
 
-          <div className="my-6 space-y-4">
+          <div className="space-y-4 text-[13px]">
             <LegalConsentField
               checked={acceptedPolicies}
               onChange={(checked) => {
@@ -60,23 +60,18 @@ export default function ToeikenAuthPage() {
               disabled={loadingProvider}
               error={consentError}
             />
-            {/* Google認証ボタン */}
-            <div className="border border-slate-200 rounded p-5 bg-slate-50/50 flex flex-col justify-between">
+
+            <div className="border border-slate-200 rounded-sm p-4 bg-slate-50 space-y-3">
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-slate-900 text-sm">Google アカウント</span>
-                  <span className="text-[10px] bg-slate-200 text-slate-700 border border-slate-300 px-2 py-0.5 rounded font-medium">
-                    登録・ログイン
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                  Googleアカウントでログインします。初回の認証時には東栄アカウントが作成されます。
+                <span className="font-bold text-slate-900 text-xs block mb-1">Google アカウント認証</span>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Googleアカウントで認証し、サインインを行います。
                 </p>
               </div>
               <button
                 onClick={() => void handleGoogleAuth()}
                 disabled={loadingProvider}
-                className="w-full py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 text-xs font-bold rounded-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px]"
               >
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -84,33 +79,27 @@ export default function ToeikenAuthPage() {
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
-                <span>{loadingProvider ? '認証中...' : 'Googleで登録・ログイン'}</span>
+                <span>{loadingProvider ? '処理中...' : 'Googleでログイン'}</span>
               </button>
             </div>
 
-            <div className="mt-6 rounded border border-slate-200 bg-slate-50 p-4 text-center">
-              <p className="text-sm font-semibold text-slate-800">メールアドレスで利用する場合</p>
-              <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                東栄アカウントを新規作成するか、登録済みのメールアドレスでログインしてください。
-              </p>
-              <div className="mt-3 flex flex-col justify-center gap-3 text-xs sm:flex-row">
+            <div className="rounded-sm border border-slate-200 bg-white p-4 space-y-3">
+              <p className="text-xs font-bold text-slate-900">メールアドレス認証</p>
+              <div className="flex flex-col sm:flex-row gap-2 text-xs">
                 <Link
                   href="/signup?next=%2Ftoeiken%2Fdashboard"
-                  className="rounded bg-[#0046ff] px-4 py-2 font-semibold text-white hover:bg-blue-700"
+                  className="flex-1 rounded-sm bg-[#0046ff] hover:bg-blue-700 px-4 py-2.5 text-center font-bold text-white min-h-[44px] flex items-center justify-center"
                 >
-                  メールアドレスで東栄アカウントを作成
+                  新規アカウント作成
                 </Link>
                 <Link
                   href="/login?next=%2Ftoeiken%2Fdashboard"
-                  className="rounded border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 hover:bg-slate-100"
+                  className="flex-1 rounded-sm border border-slate-300 bg-white hover:bg-slate-50 px-4 py-2.5 text-center font-bold text-slate-800 min-h-[44px] flex items-center justify-center"
                 >
-                  メールアドレスでログイン
+                  ログイン
                 </Link>
               </div>
             </div>
-            <p className="rounded border border-indigo-200 bg-indigo-50 p-3 text-xs leading-relaxed text-indigo-900">
-              Discord連携は任意です。東栄アカウントにログインした後、マイページから連携できます。
-            </p>
           </div>
         </div>
       </main>

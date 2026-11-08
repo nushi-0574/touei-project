@@ -171,49 +171,39 @@ export default function Header() {
 
   return (
     <>
-    <header className="bg-slate-900 text-slate-100 border-b border-slate-800 sticky top-0 z-50 font-sans">
+    <header className="bg-white text-slate-900 border-b border-slate-200 sticky top-0 z-50 font-sans">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
         
-        {/* ロゴ・タイトル */}
+        {/* ブランドロゴ (東栄ブルー) */}
         <div className="flex items-center gap-3">
-          <Link href="/" className="text-sm font-semibold tracking-tight text-white hover:text-slate-300">
+          <Link href="/" className="text-sm font-bold tracking-tight text-[#0046ff] hover:text-blue-700">
             東栄県公式ポータル
           </Link>
         </div>
 
-        {/* PC用ナビゲーション (脱AI: 左揃え・等幅・影なし・ピル型なし) */}
+        {/* PC用ナビゲーション (白ベース・ブランドブルー) */}
         <nav className="hidden md:flex items-center gap-4 text-[13px]">
-          <Link href="/" aria-current={isCurrent('/') ? 'page' : undefined} className={`px-2 py-1 transition-colors ${isCurrent('/') ? 'font-semibold text-white border-b-2 border-slate-300' : 'text-slate-300 hover:text-white'}`}>{t('home')}</Link>
-          <Link href={user ? '/toeiken/dashboard' : '/toeiken'} aria-current={isResidentCurrent ? 'page' : undefined} className={`px-2 py-1 transition-colors ${isResidentCurrent ? 'font-semibold text-white border-b-2 border-slate-300' : 'text-slate-300 hover:text-white'}`}>{t('residents')}</Link>
-          {user && <Link href="/toeiken/messages" aria-current={isCurrent('/toeiken/messages') ? 'page' : undefined} className={`px-2 py-1 transition-colors ${isCurrent('/toeiken/messages') ? 'font-semibold text-white border-b-2 border-slate-300' : 'text-slate-300 hover:text-white'}`}>チャット</Link>}
-          {user && (isActiveResident || isPhoneStaff) && <Link href="/toeiken/phone" aria-current={isCurrent('/toeiken/phone') ? 'page' : undefined} className={`px-2 py-1 transition-colors ${isCurrent('/toeiken/phone') ? 'font-semibold text-white border-b-2 border-slate-300' : 'text-slate-300 hover:text-white'}`}>電話窓口</Link>}
-          {user && canManagePhoneNumbers && <Link href="/admin/phone-numbers" aria-current={isCurrent('/admin/phone-numbers') ? 'page' : undefined} className={`px-2 py-1 transition-colors ${isCurrent('/admin/phone-numbers') ? 'font-semibold text-white border-b-2 border-slate-300' : 'text-slate-300 hover:text-white'}`}>電話番号管理</Link>}
-          <Link href="/toeiken/police-result" aria-current={isCurrent('/toeiken/police-result') ? 'page' : undefined} className={`px-2 py-1 transition-colors ${isCurrent('/toeiken/police-result') ? 'font-semibold text-white border-b-2 border-slate-300' : 'text-slate-300 hover:text-white'}`}>{t('examResults')}</Link>
+          <Link href="/" aria-current={isCurrent('/') ? 'page' : undefined} className={`px-2 py-1 transition-colors ${isCurrent('/') ? 'font-bold text-[#0046ff] border-b-2 border-[#0046ff]' : 'text-slate-700 hover:text-blue-700'}`}>{t('home')}</Link>
+          <Link href={user ? '/toeiken/dashboard' : '/toeiken'} aria-current={isResidentCurrent ? 'page' : undefined} className={`px-2 py-1 transition-colors ${isResidentCurrent ? 'font-bold text-[#0046ff] border-b-2 border-[#0046ff]' : 'text-slate-700 hover:text-blue-700'}`}>{t('residents')}</Link>
+          {user && <Link href="/toeiken/messages" aria-current={isCurrent('/toeiken/messages') ? 'page' : undefined} className={`px-2 py-1 transition-colors ${isCurrent('/toeiken/messages') ? 'font-bold text-[#0046ff] border-b-2 border-[#0046ff]' : 'text-slate-700 hover:text-blue-700'}`}>チャット</Link>}
+          {user && (isActiveResident || isPhoneStaff) && <Link href="/toeiken/phone" aria-current={isCurrent('/toeiken/phone') ? 'page' : undefined} className={`px-2 py-1 transition-colors ${isCurrent('/toeiken/phone') ? 'font-bold text-[#0046ff] border-b-2 border-[#0046ff]' : 'text-slate-700 hover:text-blue-700'}`}>電話窓口</Link>}
+          {user && canManagePhoneNumbers && <Link href="/admin/phone-numbers" aria-current={isCurrent('/admin/phone-numbers') ? 'page' : undefined} className={`px-2 py-1 transition-colors ${isCurrent('/admin/phone-numbers') ? 'font-bold text-[#0046ff] border-b-2 border-[#0046ff]' : 'text-slate-700 hover:text-blue-700'}`}>電話番号管理</Link>}
+          <Link href="/toeiken/police-result" aria-current={isCurrent('/toeiken/police-result') ? 'page' : undefined} className={`px-2 py-1 transition-colors ${isCurrent('/toeiken/police-result') ? 'font-bold text-[#0046ff] border-b-2 border-[#0046ff]' : 'text-slate-700 hover:text-blue-700'}`}>{t('examResults')}</Link>
           {(isPoliceStaff || isAdmin) && (
-            <Link href="/police" aria-current={isCurrent('/police') ? 'page' : undefined} className={`px-2 py-1 font-semibold transition-colors ${isCurrent('/police') ? 'text-white border-b-2 border-emerald-400' : 'text-emerald-300 hover:text-emerald-200'}`}>
+            <Link href="/police" aria-current={isCurrent('/police') ? 'page' : undefined} className={`px-2 py-1 font-bold transition-colors ${isCurrent('/police') ? 'text-blue-900 border-b-2 border-blue-900' : 'text-slate-700 hover:text-blue-800'}`}>
               {t('policePage')}
             </Link>
           )}
           {(isFireStaff || isAdmin) && (
-            <Link href="/fire" aria-current={isCurrent('/fire') ? 'page' : undefined} className={`px-2 py-1 font-semibold transition-colors ${isCurrent('/fire') ? 'text-white border-b-2 border-red-400' : 'text-red-300 hover:text-red-200'}`}>
+            <Link href="/fire" aria-current={isCurrent('/fire') ? 'page' : undefined} className={`px-2 py-1 font-bold transition-colors ${isCurrent('/fire') ? 'text-blue-900 border-b-2 border-blue-900' : 'text-slate-700 hover:text-blue-800'}`}>
               消防ページ
             </Link>
           )}
           
           {/* 管理者権限 */}
           {isAdmin && (
-            <Link href="/admin" aria-current={isAdminCurrent ? 'page' : undefined} className={`px-2 py-1 font-semibold transition-colors ${isAdminCurrent ? 'text-white border-b-2 border-amber-400' : 'text-amber-300 hover:text-amber-200'}`}>
+            <Link href="/admin" aria-current={isAdminCurrent ? 'page' : undefined} className={`px-2 py-1 font-bold transition-colors ${isAdminCurrent ? 'text-blue-900 border-b-2 border-blue-900' : 'text-slate-700 hover:text-blue-800'}`}>
               {t('adminPanel')}
-            </Link>
-          )}
-          {isServiceStaff && (
-            <Link href="/admin/services" aria-current={isCurrent('/admin/services') ? 'page' : undefined} className={`px-2 py-1 font-semibold transition-colors ${isCurrent('/admin/services') ? 'text-white border-b-2 border-blue-400' : 'text-blue-300 hover:text-blue-200'}`}>
-              業務管理
-            </Link>
-          )}
-          {isServiceStaff && (
-            <Link href="/admin/operations" aria-current={isCurrent('/admin/operations') ? 'page' : undefined} className={`px-2 py-1 font-semibold transition-colors ${isCurrent('/admin/operations') ? 'text-white border-b-2 border-blue-400' : 'text-blue-300 hover:text-blue-200'}`}>
-              業務状況
             </Link>
           )}
 
@@ -222,7 +212,7 @@ export default function Header() {
             id="header-locale"
             value={locale}
             onChange={(event) => setLocale(event.target.value as (typeof locales)[number])}
-            className="border border-slate-700 bg-slate-800 px-2 py-1 text-[13px] text-slate-100 rounded-sm"
+            className="border border-slate-300 bg-white px-2 py-1 text-[13px] text-slate-800 rounded-sm focus:border-[#0046ff]"
           >
             <option value="ja">{t('ja')}</option>
             <option value="en">{t('en')}</option>
@@ -232,13 +222,13 @@ export default function Header() {
 
           {/* ログイン・ユーザー状態 */}
           {user ? (
-            <div className="flex items-center gap-3 bg-slate-800 px-3 py-1 border border-slate-700 text-slate-300 text-[13px] rounded-sm">
-              <span className="text-slate-100 font-medium">{residentDisplayName || '住民'}</span>
-              <Link href="/toeiken/dashboard" className="text-blue-400 hover:underline font-medium">{t('myPage')}</Link>
-              <button onClick={handleSignOut} className="text-slate-400 hover:text-white">{t('signOut')}</button>
+            <div className="flex items-center gap-3 bg-slate-50 px-3 py-1 border border-slate-200 text-slate-700 text-[13px] rounded-sm">
+              <span className="text-slate-900 font-bold">{residentDisplayName || '住民'}</span>
+              <Link href="/toeiken/dashboard" className="text-[#0046ff] hover:underline font-semibold">{t('myPage')}</Link>
+              <button onClick={handleSignOut} className="text-slate-500 hover:text-slate-900">{t('signOut')}</button>
             </div>
           ) : (
-            <Link href="/toeiken" className="px-3.5 py-1 bg-blue-700 hover:bg-blue-600 text-white font-medium text-[13px] rounded-sm transition-colors">
+            <Link href="/toeiken" className="px-3.5 py-1 bg-[#0046ff] hover:bg-blue-700 text-white font-bold text-[13px] rounded-sm transition-colors">
               {t('signIn')}
             </Link>
           )}
@@ -247,7 +237,7 @@ export default function Header() {
         {/* モバイル用ハンバーガーボタン */}
         <button
           onClick={() => setIsOpen((open) => !open)}
-          className="md:hidden p-2 text-slate-300 hover:text-white focus:outline-none"
+          className="md:hidden p-2 text-slate-700 hover:text-slate-900 focus:outline-none"
           aria-label={isOpen ? 'メニューを閉じる' : t('openMenu')}
           aria-expanded={isOpen}
         >
@@ -263,12 +253,12 @@ export default function Header() {
 
       {/* モバイル用ドロップダウンメニュー */}
       {isOpen && (
-        <nav className="md:hidden bg-slate-800 border-t border-slate-700 px-4 py-4 space-y-3 text-[13px]">
+        <nav className="md:hidden bg-white border-t border-slate-200 px-4 py-4 space-y-3 text-[13px]">
           <Link
             href="/"
             onClick={() => setIsOpen(false)}
             aria-current={isCurrent('/') ? 'page' : undefined}
-            className={`block py-2 border-b border-slate-700/50 ${isCurrent('/') ? 'font-semibold text-white' : 'text-slate-200 hover:text-white'}`}
+            className={`block py-2 border-b border-slate-100 ${isCurrent('/') ? 'font-bold text-[#0046ff]' : 'text-slate-700'}`}
           >
             {t('home')}
           </Link>
@@ -276,45 +266,15 @@ export default function Header() {
             href={user ? '/toeiken/dashboard' : '/toeiken'}
             onClick={() => setIsOpen(false)}
             aria-current={isResidentCurrent ? 'page' : undefined}
-            className={`block py-2 border-b border-slate-700/50 ${isResidentCurrent ? 'font-semibold text-white' : 'text-slate-200 hover:text-white'}`}
+            className={`block py-2 border-b border-slate-100 ${isResidentCurrent ? 'font-bold text-[#0046ff]' : 'text-slate-700'}`}
           >
             {user ? t('myPage') : t('residents')}
           </Link>
-          {user && (
-            <Link
-              href="/toeiken/messages"
-              onClick={() => setIsOpen(false)}
-              aria-current={isCurrent('/toeiken/messages') ? 'page' : undefined}
-              className={`block py-2 border-b border-slate-700/50 ${isCurrent('/toeiken/messages') ? 'font-semibold text-white' : 'text-slate-200 hover:text-white'}`}
-            >
-              チャット
-            </Link>
-          )}
-          {user && (isActiveResident || isPhoneStaff) && (
-            <Link
-              href="/toeiken/phone"
-              onClick={() => setIsOpen(false)}
-              aria-current={isCurrent('/toeiken/phone') ? 'page' : undefined}
-              className={`block py-2 border-b border-slate-700/50 ${isCurrent('/toeiken/phone') ? 'font-semibold text-white' : 'text-slate-200 hover:text-white'}`}
-            >
-              電話窓口
-            </Link>
-          )}
-          {user && canManagePhoneNumbers && (
-            <Link
-              href="/admin/phone-numbers"
-              onClick={() => setIsOpen(false)}
-              aria-current={isCurrent('/admin/phone-numbers') ? 'page' : undefined}
-              className={`block py-2 font-semibold border-b border-slate-700/50 ${isCurrent('/admin/phone-numbers') ? 'text-white' : 'text-blue-300 hover:text-blue-200'}`}
-            >
-              電話番号管理
-            </Link>
-          )}
           <Link
             href="/toeiken/police-result"
             onClick={() => setIsOpen(false)}
             aria-current={isCurrent('/toeiken/police-result') ? 'page' : undefined}
-            className={`block py-2 border-b border-slate-700/50 ${isCurrent('/toeiken/police-result') ? 'font-semibold text-white' : 'text-slate-200 hover:text-white'}`}
+            className={`block py-2 border-b border-slate-100 ${isCurrent('/toeiken/police-result') ? 'font-bold text-[#0046ff]' : 'text-slate-700'}`}
           >
             {t('examResults')}
           </Link>
@@ -323,59 +283,26 @@ export default function Header() {
               href="/police"
               onClick={() => setIsOpen(false)}
               aria-current={isCurrent('/police') ? 'page' : undefined}
-              className={`block py-2 font-semibold border-b border-slate-700/50 ${isCurrent('/police') ? 'text-white' : 'text-emerald-300 hover:text-emerald-200'}`}
+              className={`block py-2 font-bold border-b border-slate-100 ${isCurrent('/police') ? 'text-[#0046ff]' : 'text-slate-700'}`}
             >
               {t('policePage')}
             </Link>
           )}
-          {(isFireStaff || isAdmin) && (
-            <Link
-              href="/fire"
-              onClick={() => setIsOpen(false)}
-              aria-current={isCurrent('/fire') ? 'page' : undefined}
-              className={`block border-b border-slate-700/50 py-2 font-semibold ${isCurrent('/fire') ? 'text-white' : 'text-red-300'}`}
-            >
-              消防ページ
-            </Link>
-          )}
-
-          {isAdmin && (
-            <Link
-              href="/admin"
-              onClick={() => setIsOpen(false)}
-              aria-current={isAdminCurrent ? 'page' : undefined}
-              className={`block py-2 font-semibold border-b border-slate-700/50 ${isAdminCurrent ? 'text-white' : 'text-amber-400 hover:text-amber-300'}`}
-            >
-              {t('adminPanel')}
-            </Link>
-          )}
 
           <div className="pt-2">
-            <label htmlFor="mobile-locale" className="mb-1 block text-slate-300">{t('language')}</label>
-            <select
-              id="mobile-locale"
-              value={locale}
-              onChange={(event) => setLocale(event.target.value as (typeof locales)[number])}
-              className="mb-3 w-full border border-slate-600 bg-slate-900 px-3 py-2 text-slate-100 text-[13px] rounded-sm"
-            >
-              <option value="ja">{t('ja')}</option>
-              <option value="en">{t('en')}</option>
-              <option value="zh-CN">{t('zh')}</option>
-              <option value="ko">{t('ko')}</option>
-            </select>
             {user ? (
-              <div className="space-y-2 bg-slate-900/50 p-3 rounded-sm border border-slate-700">
-                <p className="text-[12px] text-slate-400 break-words">ログイン中: {residentDisplayName || '住民'}</p>
+              <div className="space-y-2 bg-slate-50 p-3 rounded-sm border border-slate-200">
+                <p className="text-[12px] text-slate-600">ログイン中: {residentDisplayName || '住民'}</p>
                 <Link
                   href="/toeiken/dashboard"
                   onClick={() => setIsOpen(false)}
-                  className="block py-2 text-center bg-blue-700 hover:bg-blue-600 text-white font-medium transition-colors"
+                  className="block py-2 text-center bg-[#0046ff] hover:bg-blue-700 text-white font-bold transition-colors rounded-sm"
                 >
                   {t('myPage')}
                 </Link>
                 <button
                   onClick={handleSignOut}
-                  className="block w-full py-2 text-center border border-slate-600 text-slate-200"
+                  className="block w-full py-2 text-center border border-slate-300 text-slate-700 rounded-sm"
                 >
                   {t('signOut')}
                 </button>
@@ -384,7 +311,7 @@ export default function Header() {
               <Link
                 href="/toeiken"
                 onClick={() => setIsOpen(false)}
-                className="block py-2 text-center bg-blue-700 hover:bg-blue-600 text-white font-medium transition-colors"
+                className="block py-2 text-center bg-[#0046ff] hover:bg-blue-700 text-white font-bold transition-colors rounded-sm"
               >
                 {t('signIn')}
               </Link>
@@ -394,15 +321,15 @@ export default function Header() {
       )}
     </header>
     {emergencyAlerts.length > 0 && (
-      <aside aria-label="緊急情報" className="border-b border-red-300 bg-red-50 text-red-950">
+      <aside aria-label="緊急情報" className="border-b border-red-200 bg-red-50 text-red-950">
         <div className="mx-auto max-w-7xl space-y-2 px-4 py-3 sm:px-6">
           {emergencyAlerts.map((alert) => (
             <article key={alert.id} role={alert.severity === 'critical' ? 'alert' : 'status'} className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3 text-[13px]">
-              <span className={`shrink-0 border px-2 py-0.5 text-xs font-bold ${alert.severity === 'critical' ? 'bg-red-800 text-white border-red-900' : alert.severity === 'warning' ? 'bg-amber-100 text-amber-950 border-amber-300' : 'bg-blue-100 text-blue-950 border-blue-300'}`}>
-                {alert.severity === 'critical' ? '緊急' : alert.severity === 'warning' ? '警戒情報' : 'お知らせ'}
+              <span className={`shrink-0 border px-2 py-0.5 text-xs font-bold ${alert.severity === 'critical' ? 'bg-red-800 text-white border-red-900' : 'bg-amber-100 text-amber-950 border-amber-300'}`}>
+                {alert.severity === 'critical' ? '緊急' : 'お知らせ'}
               </span>
               <div className="min-w-0">
-                <h2 className="text-[13px] font-semibold">{alert.title}</h2>
+                <h2 className="text-[13px] font-bold">{alert.title}</h2>
                 <p className="mt-0.5 whitespace-pre-wrap text-[13px] text-slate-800">{alert.area} · {alert.message}</p>
               </div>
             </article>
