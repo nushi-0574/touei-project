@@ -11,6 +11,7 @@ import Toast from '../components/Toast';
 import { getErrorMessage } from '../../lib/errors';
 import BillingPanel from './BillingPanel';
 import LoadingScreen from '../components/LoadingScreen';
+import { Shield, FileText, Map, PhoneCall, UserCheck, ChevronRight } from 'lucide-react';
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -76,186 +77,207 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans">
       <Header />
       
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 flex-1">
         <Breadcrumbs items={[{ label: 'メインメニュー' }]} />
 
-        {/* 東栄県ユーザー誘導バナー */}
-        <div className="bg-slate-900 text-white rounded p-6 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <span className="text-[10px] bg-[#0046ff] text-white px-2 py-0.5 rounded font-medium uppercase tracking-wider">
-              特別案内
-            </span>
-            <h2 className="text-base font-bold mt-1">東栄県ユーザーの方はこちら</h2>
-            <p className="text-xs text-slate-300 mt-1">
-              Googleアカウントまたはメールアドレスで東栄アカウントを作成・ログインできます。Discord連携はログイン後に任意で設定できます。
-            </p>
-          </div>
-          <Link
-            href="/toeiken"
-            className="px-4 py-2 bg-white text-slate-900 hover:bg-slate-100 text-xs font-semibold rounded transition-colors whitespace-nowrap"
-          >
-            専用ページへ移動
-          </Link>
-        </div>
+        {/* 非対称 7:3 レイアウト */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 items-start mt-4">
 
-        <div className="bg-white border border-slate-200 rounded p-6 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4 mb-4">
-            <div>
-              <h1 className="text-xl font-bold text-slate-900">メインメニュー</h1>
-              <p className="text-xs text-slate-500 mt-1">東栄ポータル 機能一覧</p>
-            </div>
-            <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-2 rounded">
-              <span>アカウント: </span>
-              <span className="font-semibold text-slate-900">{user?.email}</span>
-              <span className="ml-3 text-slate-400">|</span>
-              <span className="ml-3">権限: </span>
-              <span className="font-semibold text-slate-900">
-                {profile?.is_admin ? '管理者' : '一般ユーザー'}
-              </span>
-            </div>
-          </div>
+          {/* メインエリア (7割) */}
+          <div className="space-y-6">
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* システム管理パネル */}
-            {profile?.is_admin ? (
-              <div className="border border-slate-200 rounded p-5 bg-white hover:border-[#0046ff] transition-colors flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h2 className="font-bold text-slate-900 text-base">システム管理パネル</h2>
-                    <span className="text-xs bg-blue-50 text-[#0046ff] border border-blue-200 px-2 py-0.5 rounded font-medium">
-                      管理者専用
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed mb-6">
-                    登録ユーザーの一覧参照および権限（ロール）変更の手続きを行います。
-                  </p>
-                </div>
-                <Link
-                  href="/admin"
-                  className="block w-full text-center bg-[#0046ff] hover:bg-blue-700 text-white text-xs font-medium py-2 rounded transition-colors"
-                >
-                  管理画面を開く
-                </Link>
-              </div>
-            ) : (
-              <div className="border border-slate-200 rounded p-5 bg-slate-50 opacity-60 flex flex-col justify-between">
-                <div>
-                  <h2 className="font-bold text-slate-700 text-base mb-2">システム管理パネル</h2>
-                  <p className="text-xs text-slate-500 leading-relaxed mb-6">
-                    管理者権限を持つアカウントのみ利用可能です。
-                  </p>
-                </div>
-                <span className="block w-full text-center bg-slate-200 text-slate-500 text-xs font-medium py-2 rounded cursor-not-allowed">
-                  アクセス権限なし
+            {/* 東栄県ユーザー誘導ヘッダー (左揃え) */}
+            <section className="bg-slate-900 text-white p-6 rounded-sm border border-slate-800">
+              <div className="space-y-3 max-w-2xl">
+                <span className="inline-block text-xs font-semibold text-emerald-400 bg-slate-800 border border-slate-700 px-2.5 py-0.5">
+                  東栄県専用ポータル案内
                 </span>
-              </div>
-            )}
-
-            {(profile?.is_police_staff || profile?.is_admin) && (
-              <div className="border border-emerald-200 rounded p-5 bg-white hover:border-emerald-500 transition-colors flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h2 className="font-bold text-slate-900 text-base">警察職員メニュー</h2>
-                    <span className="text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded font-medium">
-                      警察職員専用
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed mb-6">
-                    110番緊急指令卓および警察無線通信システムを利用できます。
-                  </p>
+                <h1 className="text-xl font-bold tracking-tight text-white">
+                  東栄ポータル 機能統合ダッシュボード
+                </h1>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  東栄アカウントでの各種行政手続き、住民サービス、施設マップ、および各種専門職用管理機能を開設しています。
+                </p>
+                <div className="pt-2">
+                  <Link
+                    href="/toeiken"
+                    className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-blue-700 hover:bg-blue-600 text-white text-xs font-semibold rounded-sm transition-colors"
+                  >
+                    <span>東栄アカウント専用画面へ移動</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
                 </div>
-                <Link
-                  href="/police"
-                  className="block w-full text-center bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-medium py-2 rounded transition-colors"
-                >
-                  警察職員ページを開く
-                </Link>
               </div>
-            )}
+            </section>
 
-            {(isFireStaff || profile?.is_admin) && (
-              <div className="flex flex-col justify-between rounded border border-red-200 bg-white p-5 transition-colors hover:border-red-500">
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <h2 className="text-base font-bold text-slate-900">消防職員メニュー</h2>
-                    <span className="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800">
-                      消防職員専用
-                    </span>
+            {/* 各種ポータル機能一覧（縦並び・影なし・13px+） */}
+            <section className="space-y-4">
+              <h2 className="text-base font-bold text-slate-900 tracking-tight border-b border-slate-200 pb-2">
+                機能・ポータル一覧
+              </h2>
+
+              <div className="space-y-3">
+
+                {/* システム管理パネル (管理者専用) */}
+                {profile?.is_admin ? (
+                  <div className="border border-slate-300 rounded-sm p-5 bg-white space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-slate-900 text-sm">システム管理パネル</h3>
+                      <span className="text-xs bg-blue-50 text-blue-900 border border-blue-200 px-2 py-0.5 font-semibold">
+                        管理者専用
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      登録ユーザーの一覧参照、住民データ照会、職員の組織権限（ロール）割り当て手続きを行います。
+                    </p>
+                    <div className="pt-2">
+                      <Link
+                        href="/admin"
+                        className="inline-block px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-sm transition-colors"
+                      >
+                        管理画面を開く
+                      </Link>
+                    </div>
                   </div>
-                  <p className="mb-6 text-xs leading-relaxed text-slate-600">
-                    消防災害指令ポータルおよび通信窓口を利用できます。
+                ) : (
+                  <div className="border border-slate-200 rounded-sm p-5 bg-slate-100 opacity-60">
+                    <h3 className="font-bold text-slate-700 text-sm">システム管理パネル</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-1">
+                      管理者権限を持つアカウントのみアクセス可能です。
+                    </p>
+                  </div>
+                )}
+
+                {/* 警察職員メニュー */}
+                {(profile?.is_police_staff || profile?.is_admin) && (
+                  <div className="border border-slate-300 rounded-sm p-5 bg-white space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-emerald-700" />
+                        <span>警察職員ポータル</span>
+                      </h3>
+                      <span className="text-xs bg-emerald-50 text-emerald-900 border border-emerald-200 px-2 py-0.5 font-semibold">
+                        警察職員専用
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      110番緊急指令卓、警察無線統括卓、採用合否照会システムを利用できます。
+                    </p>
+                    <div className="pt-2">
+                      <Link
+                        href="/police"
+                        className="inline-block px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-semibold rounded-sm transition-colors"
+                      >
+                        警察職員専用ポータルを開く
+                      </Link>
+                    </div>
+                  </div>
+                )}
+
+                {/* 消防職員メニュー */}
+                {(isFireStaff || profile?.is_admin) && (
+                  <div className="border border-slate-300 rounded-sm p-5 bg-white space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-slate-900 text-sm">消防職員ポータル</h3>
+                      <span className="text-xs bg-red-50 text-red-900 border border-red-200 px-2 py-0.5 font-semibold">
+                        消防職員専用
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      消防通信指令ポータルおよび災害連絡窓口を利用できます。
+                    </p>
+                    <div className="pt-2">
+                      <Link
+                        href="/fire"
+                        className="inline-block px-4 py-2 bg-red-800 hover:bg-red-900 text-white text-xs font-semibold rounded-sm transition-colors"
+                      >
+                        消防職員専用ポータルを開く
+                      </Link>
+                    </div>
+                  </div>
+                )}
+
+                {/* 住民サービスセンター */}
+                <div className="border border-slate-300 rounded-sm p-5 bg-white space-y-2">
+                  <h3 className="font-bold text-slate-900 text-sm">住民サービスセンター</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    行政申請手続き、イベント予約、通知確認、住民証発行、コミュニティ掲示板、電話窓口をまとめて利用できます。
                   </p>
+                  <div className="pt-2">
+                    <Link
+                      href="/toeiken/services"
+                      className="inline-block px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white text-xs font-semibold rounded-sm transition-colors"
+                    >
+                      住民サービスセンターを開く
+                    </Link>
+                  </div>
                 </div>
-                <Link
-                  href="/fire"
-                  className="block w-full rounded bg-red-700 py-2 text-center text-xs font-medium text-white transition-colors hover:bg-red-800"
-                >
-                  消防職員ページを開く
-                </Link>
-              </div>
-            )}
 
-            {/* ドキュメントライブラリ */}
-            <div className="border border-slate-200 rounded p-5 bg-white hover:border-[#0046ff] transition-colors flex flex-col justify-between">
-              <div>
-                <h2 className="font-bold text-slate-900 text-base mb-2">ドキュメントライブラリ</h2>
-                <p className="text-xs text-slate-600 leading-relaxed mb-6">
-                  プロジェクト関連資料、教本、各種ガイドラインの参照ができます。
+                {/* ドキュメント & 地図・採用 */}
+                <div className="border border-slate-300 rounded-sm p-5 bg-white space-y-3">
+                  <h3 className="font-bold text-slate-900 text-sm">情報閲覧・公開資料</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    行政案内資料、地域地図、採用募集情報を確認できます。
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1 text-xs">
+                    <Link href="/pages" className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-medium rounded-sm">
+                      公開資料一覧
+                    </Link>
+                    <Link href="/map" className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-medium rounded-sm">
+                      地域地図情報
+                    </Link>
+                    <Link href="/recruitment" className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-medium rounded-sm">
+                      採用情報
+                    </Link>
+                  </div>
+                </div>
+
+              </div>
+            </section>
+
+          </div>
+
+          {/* 右側サイドバー (3割) - ユーザーアカウント・契約情報 */}
+          <aside className="space-y-6">
+
+            {/* アカウントステータス */}
+            <div className="bg-white border border-slate-300 p-5 rounded-sm space-y-3 text-xs">
+              <h3 className="font-bold text-slate-900 border-b border-slate-200 pb-2 flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-slate-600" />
+                <span>ログインアカウント情報</span>
+              </h3>
+              <div className="space-y-1.5 text-slate-700">
+                <p className="break-all font-mono font-semibold">{user?.email}</p>
+                <p className="text-slate-500">
+                  アカウント権限: <strong className="text-slate-900">{profile?.is_admin ? '主任管理者' : '一般アカウント'}</strong>
                 </p>
               </div>
-              <Link
-                href="/pages"
-                className="block w-full text-center bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-2 rounded border border-slate-300 transition-colors"
-              >
-                資料を閲覧する
-              </Link>
-            </div>
-
-            <div className="border border-slate-200 rounded p-5 bg-white hover:border-[#0046ff] transition-colors flex flex-col justify-between">
-              <div>
-                <h2 className="font-bold text-slate-900 text-base mb-2">住民サービスセンター</h2>
-                <p className="text-xs text-slate-600 leading-relaxed mb-6">
-                  行政申請、イベント、通知、住民証、コミュニティ、問い合わせをまとめて利用できます。
-                </p>
-              </div>
-              <Link href="/toeiken/services" className="block w-full text-center bg-[#0046ff] hover:bg-blue-700 text-white text-xs font-medium py-2 rounded transition-colors">
-                住民サービスを開く
-              </Link>
-            </div>
-
-            <div className="border border-slate-200 rounded p-5 bg-white hover:border-[#0046ff] transition-colors flex flex-col justify-between">
-              <div>
-                <h2 className="font-bold text-slate-900 text-base mb-2">施設・採用情報</h2>
-                <p className="text-xs text-slate-600 leading-relaxed mb-6">
-                  地図で施設情報を確認し、公開中の採用情報を閲覧・応募できます。
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Link href="/map" className="block w-full text-center bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-2 rounded border border-slate-300 transition-colors">
-                  地図を見る
-                </Link>
-                <Link href="/recruitment" className="block w-full text-center bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-2 rounded border border-slate-300 transition-colors">
-                  採用情報
+              <div className="pt-2">
+                <Link href="/toeiken/dashboard" className="text-blue-800 hover:underline font-bold text-xs block">
+                  マイページでプロフィールを確認 →
                 </Link>
               </div>
             </div>
 
             {/* 決済・契約管理 */}
-            <div className="border border-slate-200 rounded p-5 bg-white hover:border-[#0046ff] transition-colors">
-              <div className="mb-4">
-                <h2 className="font-bold text-slate-900 text-base mb-2">決済・プラン管理</h2>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  契約状況の確認、定期プランのお申し込み、支払い方法や解約の管理ができます。
-                </p>
-              </div>
+            <div className="bg-white border border-slate-300 p-5 rounded-sm space-y-3 text-xs">
+              <h3 className="font-bold text-slate-900 border-b border-slate-200 pb-2">
+                決済・プラン管理
+              </h3>
+              <p className="text-slate-600 leading-relaxed">
+                定額プラン契約状況、Stripeカスタマーポータルでのカード変更や請求履歴の管理を行えます。
+              </p>
               {user && <BillingPanel userId={user.id} />}
             </div>
-          </div>
+
+          </aside>
+
         </div>
       </main>
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );

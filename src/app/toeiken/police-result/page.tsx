@@ -65,7 +65,6 @@ export default function PoliceResultPage() {
       return;
     }
 
-    // 全角やハイフンが入力されていた場合は自動補正した値を入力欄に反映
     if (cleanExamNumber !== examNumber) {
       setExamNumber(cleanExamNumber);
     }
@@ -113,26 +112,26 @@ export default function PoliceResultPage() {
     formatStatus(status).includes('合格') && !formatStatus(status).includes('不合格');
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans">
       <Header />
 
       <main className="flex-1 max-w-3xl mx-auto px-4 sm:px-6 py-8 w-full space-y-6">
         <Breadcrumbs items={[{ label: '警察官採用試験 合否照会' }]} />
 
-        <div className="bg-white border border-slate-300 rounded shadow-sm p-6 sm:p-8">
+        <div className="bg-white border border-slate-300 rounded-sm p-6 sm:p-8">
           <div className="border-b border-slate-200 pb-4 mb-6">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
               令和8年度 東栄県警察官採用試験 合否照会システム
             </h1>
-            <p className="text-xs text-slate-600 mt-1">
-              受考番号と生年月日を選択し、結果を確認してください。
+            <p className="text-[13px] text-slate-600 mt-1 leading-relaxed">
+              受考番号と登録生年月日を入力または選択して、選考結果を照会できます。
             </p>
           </div>
 
           <form onSubmit={handleSearch} className="space-y-5">
             <div>
-              <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1">
-                受考番号 <span className="text-red-600">*</span>
+              <label className="block text-[13px] font-semibold text-slate-800 mb-1">
+                受考番号 <span className="text-red-700">*</span>
               </label>
               <input
                 type="text"
@@ -142,14 +141,14 @@ export default function PoliceResultPage() {
                 value={examNumber}
                 onChange={(e) => setExamNumber(normalizeExamNumber(e.target.value))}
                 placeholder="例: 20260103"
-                className="w-full sm:w-1/2 px-3 py-2.5 min-h-[44px] border border-slate-300 rounded text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                className="w-full sm:w-1/2 px-3 py-2.5 min-h-[44px] border border-slate-300 rounded-sm text-base sm:text-sm focus:outline-none focus:border-slate-800 font-mono tabular-nums bg-white"
               />
-              <p className="text-[11px] text-slate-500 mt-1">※全角数字を入力しても自動で半角数字に変換されます。</p>
+              <p className="text-[13px] text-slate-500 mt-1">※全角数字で入力された場合は自動的に半角数字に変換されます。</p>
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1">
-                生年月日 <span className="text-red-600">*</span>
+              <label className="block text-[13px] font-semibold text-slate-800 mb-1">
+                生年月日 <span className="text-red-700">*</span>
               </label>
               <div className="flex flex-wrap items-center gap-2 text-base sm:text-sm">
                 <select
@@ -159,7 +158,7 @@ export default function PoliceResultPage() {
                     setBirthYear(year);
                     setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(year), Number(birthMonth)))));
                   }}
-                  className="px-3 py-2.5 min-h-[44px] border border-slate-300 rounded bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2.5 min-h-[44px] border border-slate-300 rounded-sm bg-white text-base sm:text-sm focus:outline-none focus:border-slate-800 tabular-nums"
                 >
                   {years.map((y) => (
                     <option key={y} value={y}>{y}年</option>
@@ -173,7 +172,7 @@ export default function PoliceResultPage() {
                     setBirthMonth(month);
                     setBirthDay(String(Math.min(Number(birthDay), getDaysInMonth(Number(birthYear), Number(month)))));
                   }}
-                  className="px-3 py-2.5 min-h-[44px] border border-slate-300 rounded bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2.5 min-h-[44px] border border-slate-300 rounded-sm bg-white text-base sm:text-sm focus:outline-none focus:border-slate-800 tabular-nums"
                 >
                   {months.map((m) => (
                     <option key={m} value={m}>{m}月</option>
@@ -183,7 +182,7 @@ export default function PoliceResultPage() {
                 <select
                   value={birthDay}
                   onChange={(e) => setBirthDay(e.target.value)}
-                  className="px-3 py-2.5 min-h-[44px] border border-slate-300 rounded bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2.5 min-h-[44px] border border-slate-300 rounded-sm bg-white text-base sm:text-sm focus:outline-none focus:border-slate-800 tabular-nums"
                 >
                   {days.map((d) => (
                     <option key={d} value={d}>{d}日</option>
@@ -196,45 +195,45 @@ export default function PoliceResultPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full sm:w-auto px-6 py-3 min-h-[44px] bg-blue-700 hover:bg-blue-600 text-white text-sm font-bold rounded transition-colors shadow disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-semibold rounded-sm transition-colors disabled:opacity-50"
               >
-                {loading ? '照会中...' : '結果を確認する'}
+                {loading ? '照会中...' : '結果を照会する'}
               </button>
             </div>
           </form>
 
           {searched && (
             <div className="mt-8 border-t border-slate-200 pt-6">
-              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">照会結果</h2>
+              <h2 className="text-[13px] font-semibold text-slate-700 uppercase tracking-wider mb-3">選考照会結果</h2>
               
               {resultData ? (
-                <div className="bg-slate-50 border border-slate-300 rounded p-6 space-y-3">
-                  <div className="grid grid-cols-2 gap-4 text-xs sm:text-sm">
+                <div className="bg-slate-50 border border-slate-300 rounded-sm p-6 space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-[13px]">
                     <div>
-                      <span className="text-slate-500 block mb-0.5">受考番号</span>
-                      <span className="font-mono font-bold text-slate-800">{resultData.exam_number}</span>
+                      <span className="text-slate-600 block mb-0.5">受考番号</span>
+                      <span className="font-mono font-bold text-slate-900 tabular-nums">{resultData.exam_number}</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block mb-0.5">氏名</span>
-                      <span className="font-bold text-slate-800">{resultData.name}</span>
+                      <span className="text-slate-600 block mb-0.5">氏名</span>
+                      <span className="font-bold text-slate-900">{resultData.name}</span>
                     </div>
                   </div>
 
                   <div className="border-t border-slate-200 pt-3 flex items-center justify-between">
                     <div>
-                      <span className="text-slate-500 block mb-1 text-xs">選考結果</span>
-                      <div className={`inline-block px-4 py-1.5 rounded font-bold text-sm tracking-widest ${isPassingResult(resultData.result) ? 'bg-blue-900 text-white' : 'bg-red-800 text-white'}`}>
+                      <span className="text-slate-600 block mb-1 text-[13px]">選考結果</span>
+                      <div className={`inline-block px-4 py-1.5 rounded-sm font-bold text-sm tracking-widest ${isPassingResult(resultData.result) ? 'bg-slate-900 text-white' : 'bg-red-900 text-white'}`}>
                         {formatStatus(resultData.result)}
                       </div>
                     </div>
-                    <p className="text-xs text-slate-500">{resultData.exam_name}</p>
+                    <p className="text-[13px] text-slate-600">{resultData.exam_name}</p>
                   </div>
                 </div>
               ) : (
-                <div className="bg-amber-50 border border-amber-200 rounded p-4 text-xs sm:text-sm text-amber-900">
-                  <p className="font-bold mb-1">該当するデータが見つかりませんでした。</p>
-                  <p className="text-xs text-amber-800">
-                    受考番号（例: 20260103）および登録されている生年月日（例: 2010-03-10）が正しいかご確認ください。
+                <div className="bg-amber-50 border border-amber-200 rounded-sm p-4 text-[13px] text-amber-950 space-y-1">
+                  <p className="font-bold">該当する選考結果データが見つかりませんでした。</p>
+                  <p className="text-[13px] text-amber-900 leading-relaxed">
+                    受考番号（例: 20260103）および登録されている生年月日が正しく一致しているか再度ご確認ください。
                   </p>
                 </div>
               )}

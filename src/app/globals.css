@@ -1,8 +1,23 @@
 @import "tailwindcss";
 
 :focus-visible {
-  outline: 3px solid #2563eb;
-  outline-offset: 3px;
+  outline: 2px solid #0f172a;
+  outline-offset: 2px;
+}
+
+body {
+  background-color: #f8fafc;
+  color: #0f172a;
+  line-height: 1.75;
+  font-size: 14px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.02em;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 /* iOS Safari 自動ズーム防止 */
@@ -29,10 +44,10 @@
   z-index: 100;
   transform: translateY(-200%);
   border-radius: 0.25rem;
-  background: #fff;
+  background: #0f172a;
   padding: 0.75rem 1rem;
-  color: #0f172a;
-  font-weight: 700;
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .skip-link:focus {
@@ -41,7 +56,6 @@
 
 .loading-perimeter rect {
   animation: loading-perimeter-travel 2.4s linear infinite;
-  filter: drop-shadow(0 0 6px rgb(37 99 235 / 60%));
 }
 
 @keyframes loading-perimeter-travel {
