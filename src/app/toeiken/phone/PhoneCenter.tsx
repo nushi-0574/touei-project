@@ -7,6 +7,7 @@ import Header from '../../components/Header';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import { supabase } from '../../../lib/supabase';
+import { PhoneCall as PhoneIcon, Mic, MicOff, PhoneOff, UserCheck, ShieldCheck, AlertCircle, RefreshCw } from 'lucide-react';
 
 type Department = 'operations' | 'administration' | 'development' | 'police' | 'fire' | 'corporate';
 type CallStatus = 'queued' | 'connecting' | 'completed' | 'cancelled' | 'declined';
@@ -31,16 +32,15 @@ type CallSignal = {
 type IceServerResponse = { iceServers: RTCIceServer[]; turnAvailable: boolean };
 
 const departments: { id: Department; label: string; roles: string[] }[] = [
-  { id: 'operations', label: '運営局', roles: ['operations_bureau'] },
-  { id: 'administration', label: '管理局', roles: ['administration_bureau'] },
-  { id: 'development', label: '開発局', roles: ['development_bureau'] },
-  { id: 'police', label: '警察', roles: ['police'] },
-  { id: 'fire', label: '消防', roles: ['fire'] },
-  { id: 'corporate', label: '企業窓口', roles: ['corporate'] },
+  { id: 'operations', label: '運営局窓口', roles: ['operations_bureau'] },
+  { id: 'administration', label: '管理局窓口', roles: ['administration_bureau'] },
+  { id: 'development', label: '開発局窓口', roles: ['development_bureau'] },
+  { id: 'police', label: '警察窓口', roles: ['police'] },
+  { id: 'fire', label: '消防窓口', roles: ['fire'] },
+  { id: 'corporate', label: '企業相談窓口', roles: ['corporate'] },
 ];
 
 const activeStatuses: CallStatus[] = ['queued', 'connecting'];
-const inputClass = 'w-full rounded border border-slate-300 px-3 py-2 text-sm';
 const errorText = (error: unknown) => error instanceof Error ? error.message : '処理を完了できませんでした。';
 
 function isDepartment(value: unknown): value is Department {
@@ -55,9 +55,9 @@ function upsertCall(calls: PhoneCall[], call: PhoneCall): PhoneCall[] {
 
 function callStatusLabel(status: CallStatus): string {
   return ({
-    queued: '職員の応答を待っています',
-    connecting: '音声を接続しています',
-    completed: '通話終了',
+    queued: '担当職員の着信応答を待っています',
+    connecting: '通話音声を接続しています',
+    completed: '通話は終了しました',
     cancelled: '発信を取り消しました',
     declined: '応答できませんでした',
   })[status];
@@ -82,6 +82,8 @@ export default function PhoneCenter() {
   const [muted, setMuted] = useState(false);
   const [incomingSignals, setIncomingSignals] = useState<CallSignal[]>([]);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [micPermissionDenied, setMicPermissionDenied] = useState(false);
+
   const audioRef = useRef<HTMLAudioElement>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -165,21 +167,15 @@ export default function PhoneCenter() {
           }
         }
       })
-      .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setErrorMessage('着信のリアルタイム接続に失敗しました。ページを再読み込みしてください。');
-        }
-      });
+      .subscribe();
+
     const signalsChannel = supabase.channel(`telephone-signals-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'phone_call_signals' }, (payload) => {
         const signal = payload.new as CallSignal;
         if (signal.sender_id !== user.id) setIncomingSignals((current) => [...current, signal]);
       })
-      .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setErrorMessage('音声シグナリングの接続に失敗しました。ページを再読み込みしてください。');
-        }
-      });
+      .subscribe();
+
     return () => {
       void supabase.removeChannel(callsChannel);
       void supabase.removeChannel(signalsChannel);
@@ -222,7 +218,7 @@ export default function PhoneCenter() {
     audioRef.current.srcObject = remoteStream;
     if (remoteStream) void audioRef.current.play().catch((error: unknown) => {
       console.error('通話音声を再生できませんでした:', error);
-      setErrorMessage('音声の自動再生がブロックされました。画面の音声再生ボタンを押してください。');
+      setErrorMessage('音声の自動再生が制限されました。下の音声再生ボタンを押してください。');
     });
   }, [remoteStream]);
 
@@ -239,21 +235,39 @@ export default function PhoneCenter() {
     void (async () => {
       try {
         if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error('このブラウザーでは音声通話を利用できません。HTTPS対応のブラウザーで開いてください。');
+          throw new Error('このブラウザーでは音声通話を利用できません。HTTPS接続の標準ブラウザーで開いてください。');
         }
         setErrorMessage('');
-        setCallState('マイクへのアクセスを待っています');
+        setMicPermissionDenied(false);
+        setCallState('マイク利用許可を待っています');
+
         const tokenResult = await supabase.auth.getSession();
         if (tokenResult.error) throw tokenResult.error;
         const token = tokenResult.data.session?.access_token;
         if (!token) throw new Error('ログイン状態を確認できませんでした。');
+
         const response = await fetch('/api/phone/ice-servers', { headers: { Authorization: `Bearer ${token}` } });
         const iceConfig = await response.json() as IceServerResponse | { error?: string };
         if (!response.ok || !('iceServers' in iceConfig)) {
           throw new Error('error' in iceConfig && iceConfig.error ? iceConfig.error : '音声接続の設定を取得できませんでした。');
         }
         setTurnAvailable(iceConfig.turnAvailable);
-        const localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+
+        let localStream: MediaStream;
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true },
+            video: false,
+          });
+        } catch (micErr: unknown) {
+          if (micErr instanceof DOMException && (micErr.name === 'NotAllowedError' || micErr.name === 'PermissionDeniedError')) {
+            setMicPermissionDenied(true);
+            throw new Error('マイクへのアクセスが許可されていません。ブラウザーのアドレスバー左側の「鍵マーク/設定」からマイク許可をオンにして再試行してください。');
+          } else {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          }
+        }
+
         if (!active) {
           localStream.getTracks().forEach((track) => track.stop());
           return;
@@ -280,7 +294,7 @@ export default function PhoneCenter() {
           else if (peer.connectionState === 'connecting') setCallState('相手に接続しています');
           else if (peer.connectionState === 'failed') {
             setCallState('音声接続に失敗しました');
-            setErrorMessage('音声接続に失敗しました。ネットワークまたはTURNサーバー設定を確認してください。');
+            setErrorMessage('音声接続に失敗しました。ネットワーク状態をご確認ください。');
           } else if (peer.connectionState === 'disconnected') setCallState('接続が不安定です');
         };
         setCallState('相手に接続しています');
@@ -356,7 +370,7 @@ export default function PhoneCenter() {
       if (!user) throw new Error('ログインしてください。');
       const requestedNumber = preferredNumber.trim();
       if (requestedNumber && !/^030-\d{3}-\d{3}$/.test(requestedNumber)) {
-        throw new Error('希望番号は030-123-456の形式で入力してください。');
+        throw new Error('希望番号は 030-123-456 の形式で入力してください。');
       }
       const { error } = await supabase.from('phone_number_requests').insert({
         user_id: user.id,
@@ -364,7 +378,7 @@ export default function PhoneCenter() {
       });
       if (error) throw error;
       await loadData(user);
-      setNotice('電話番号の申請を受け付けました。審査結果はこの画面で確認できます。');
+      setNotice('電話番号の申請を受け付けました。審査完了までお待ちください。');
     } catch (error) {
       console.error('電話番号を申請できませんでした:', error);
       setErrorMessage(errorText(error));
@@ -424,7 +438,7 @@ export default function PhoneCenter() {
       if (error) throw error;
       setRemoteStream(null);
       setMuted(false);
-      setNotice(status === 'cancelled' ? '発信を終了しました。' : '通話を終了しました。');
+      setNotice(status === 'cancelled' ? '発信を取り消しました。' : '通話を終了しました。');
     } catch (error) {
       console.error('電話を終了できませんでした:', error);
       setErrorMessage(errorText(error));
@@ -436,7 +450,7 @@ export default function PhoneCenter() {
   async function toggleMute() {
     const audioTrack = localStreamRef.current?.getAudioTracks()[0];
     if (!audioTrack) {
-      setErrorMessage('マイクがまだ接続されていません。');
+      setErrorMessage('マイクが接続されていません。');
       return;
     }
     audioTrack.enabled = !audioTrack.enabled;
@@ -444,135 +458,259 @@ export default function PhoneCenter() {
   }
 
   const hasOpenRequest = numberRequests.some((request) => request.status === 'submitted');
-  const inputStyle = inputClass;
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans">
       <Header />
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
         <Breadcrumbs items={[{ label: '住民ポータル', href: '/toeiken/portal' }, { label: '電話窓口' }]} />
-        <div className="mt-4 border-b border-slate-300 pb-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-blue-700">Toei Telephone Service</p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-950">電話窓口</h1>
-          <p className="mt-2 text-sm text-slate-600">電話番号の申請、担当窓口への音声通話を利用できます。</p>
-        </div>
-        {errorMessage && <p role="alert" className="mt-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">{errorMessage}</p>}
-        {notice && <p role="status" className="mt-4 rounded border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-        {loading ? <div className="mt-5"><ContentSkeleton rows={4} /></div> : !user ? (
-          <section className="mt-5 rounded border border-slate-200 bg-white p-5">
-            <p className="text-sm">電話窓口を利用するには東栄アカウントでログインしてください。</p>
-            <Link href="/toeiken" className="mt-3 inline-block rounded bg-blue-700 px-4 py-2 text-sm font-semibold text-white">ログインへ</Link>
-          </section>
-        ) : (
-          <div className="mt-5 grid gap-5">
-            <section className="rounded border border-slate-200 bg-white p-5">
-              <h2 className="text-lg font-bold">住民電話番号</h2>
-              {phone?.status === 'active' ? (
-                <p className="mt-3 text-2xl font-bold tracking-wider text-blue-800">{phone.phone_number}</p>
-              ) : (
-                <>
-                  <p className="mt-2 text-sm text-slate-600">電話番号の発行後に窓口への発信ができます。番号は内部通話用です。</p>
-                  {!isActiveResident ? (
-                    <p className="mt-3 rounded bg-amber-50 p-3 text-sm text-amber-900">電話番号の申請には有効な住民登録が必要です。</p>
-                  ) : hasOpenRequest ? (
-                    <p className="mt-3 rounded bg-amber-50 p-3 text-sm text-amber-900">電話番号の申請を審査中です。</p>
-                  ) : numberRequests.some((request) => request.status === 'approved') ? (
-                    <p className="mt-3 rounded bg-red-50 p-3 text-sm text-red-800">電話番号は現在利用できません。管理局へお問い合わせください。</p>
-                  ) : (
-                    <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                      <label className="grid gap-1 text-sm font-semibold">希望番号（任意）
-                        <input type="text" inputMode="numeric" autoComplete="tel-national" maxLength={11} placeholder="030-123-456" value={preferredNumber} onChange={(event) => setPreferredNumber(event.target.value)} className={inputStyle} />
-                        <span className="text-xs font-normal text-slate-500">重複時は自動発行番号を選択できます。</span>
-                      </label>
-                      <button type="button" disabled={busy} onClick={() => void requestPhoneNumber()} className="rounded bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-                        {busy ? '申請中...' : '電話番号を申請'}
-                      </button>
-                    </div>
-                  )}
-                  {numberRequests.filter((request) => request.status !== 'submitted').map((request) => (
-                    <p key={request.id} className="mt-3 text-sm text-slate-600">
-                      申請状況: {request.status === 'approved' ? '発行済み' : request.status === 'rejected' ? '却下' : '取消'}
-                      {request.staff_response && <span className="mt-1 block">{request.staff_response}</span>}
-                    </p>
-                  ))}
-                </>
-              )}
-            </section>
 
-            {activeCall && (
-              <section className="rounded border border-blue-300 bg-blue-50 p-5" aria-live="polite">
-                <h2 className="text-lg font-bold text-blue-950">{callStatusLabel(activeCall.status)}</h2>
-                <p className="mt-2 text-sm">{departments.find((department) => department.id === activeCall.department)?.label} · {activeCall.caller_number}</p>
-                {activeCall.status === 'connecting' && (
-                  <>
-                    <p className="mt-2 text-sm text-blue-900">{callState}</p>
-                    <audio ref={audioRef} autoPlay controls className="mt-3 w-full" aria-label="通話音声" />
-                    {!turnAvailable && <p className="mt-2 text-xs text-amber-900">TURN中継が未設定です。一部のネットワークでは音声が接続できない場合があります。</p>}
-                    <button type="button" onClick={() => void toggleMute()} className="mt-3 rounded border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-900">{muted ? 'マイクをオンにする' : 'マイクをミュート'}</button>
-                  </>
-                )}
-                <button type="button" disabled={busy} onClick={() => void endCall()} className="mt-3 ml-2 rounded bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-                  {activeCall.caller_id === user.id ? '発信を終了' : '通話を終了'}
-                </button>
-              </section>
-            )}
+        {/* 7:3 非対称レイアウト */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 items-start mt-4">
 
-            {phone?.status === 'active' && !activeCall && (
-              <section className="rounded border border-slate-200 bg-white p-5">
-                <h2 className="text-lg font-bold">窓口へ発信</h2>
-                <p className="mt-2 text-sm text-slate-600">通話を開始すると、選択した窓口の職員に着信します。マイクへのアクセスを許可してください。</p>
-                <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <label className="grid gap-1 text-sm font-semibold">発信先
-                    <select value={selectedDepartment} onChange={(event) => setSelectedDepartment(event.target.value as Department)} className={inputStyle}>
-                      {departments.map((department) => <option key={department.id} value={department.id}>{department.label}</option>)}
-                    </select>
-                  </label>
-                  <button type="button" disabled={busy} onClick={() => void callDepartment(selectedDepartment)} className="self-end rounded bg-blue-700 px-5 py-2 text-sm font-semibold text-white disabled:opacity-50">
-                    {busy ? '発信中...' : '音声通話を開始'}
-                  </button>
-                </div>
-                <p className="mt-3 text-xs text-slate-500">音声は通話相手と直接接続し、録音・保存しません。ブラウザーのマイク利用許可が必要です。</p>
-              </section>
-            )}
+          {/* メインエリア (7割) */}
+          <div className="space-y-6">
 
-            {staffDepartments.length > 0 && (
-              <section className="rounded border border-slate-200 bg-white p-5">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="text-lg font-bold">窓口の着信</h2>
-                  <p className="text-xs text-slate-500">対応可能な窓口: {staffDepartments.map((id) => departments.find((department) => department.id === id)?.label).join('、')}</p>
-                </div>
-                <div className="mt-3 divide-y divide-slate-100">
-                  {queuedCalls.map((call) => (
-                    <article key={call.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                      <div>
-                        <p className="font-semibold">{departments.find((department) => department.id === call.department)?.label}</p>
-                        <p className="mt-1 text-xs text-slate-500">{call.caller_number} · {new Date(call.created_at).toLocaleString()}</p>
-                      </div>
-                      <button type="button" disabled={busy || Boolean(activeCall)} onClick={() => void acceptCall(call)} className="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">応答する</button>
-                    </article>
-                  ))}
-                  {!queuedCalls.length && <p className="py-3 text-sm text-slate-500">現在、着信はありません。</p>}
-                </div>
-              </section>
-            )}
+            <div className="bg-slate-900 text-white p-6 rounded-sm border border-slate-800 space-y-2">
+              <span className="text-[11px] font-mono tracking-widest text-emerald-400 font-bold uppercase">
+                TELEPHONE SERVICE / WEBRTC VOICE
+              </span>
+              <h1 className="text-xl font-bold tracking-tight text-white">内部電話窓口 (030番)</h1>
+              <p className="text-xs text-slate-300">
+                030番号の申請・発行、および行政各局窓口へのブラウザ音声通話機能を提供しています。
+              </p>
+            </div>
 
-            <section className="rounded border border-slate-200 bg-white p-5">
-              <h2 className="text-lg font-bold">最近の通話</h2>
-              <div className="mt-3 divide-y divide-slate-100">
-                {calls.filter((call) => !activeStatuses.includes(call.status) && (call.caller_id === user.id || call.assigned_to === user.id)).slice(0, 20).map((call) => (
-                  <div key={call.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm">
-                    <span>{departments.find((department) => department.id === call.department)?.label} · {call.caller_number}</span>
-                    <span className="text-slate-500">{callStatusLabel(call.status)} · {new Date(call.created_at).toLocaleString()}</span>
-                  </div>
-                ))}
-                {!calls.some((call) => !activeStatuses.includes(call.status) && (call.caller_id === user.id || call.assigned_to === user.id)) && (
-                  <p className="py-3 text-sm text-slate-500">通話履歴はありません。</p>
+            {errorMessage && (
+              <div role="alert" className="border border-red-300 bg-red-50 p-4 text-xs font-bold text-red-900 rounded-sm space-y-2">
+                <p className="flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-red-700 shrink-0" />
+                  <span>{errorMessage}</span>
+                </p>
+                {micPermissionDenied && (
+                  <p className="text-[11px] text-red-800 font-normal leading-relaxed">
+                    マイク許可の変更手順: アドレスバー左側の［鍵マーク/設定］を選択 ➜ マイクを「許可」へ変更 ➜ 画面を再読み込みしてください。
+                  </p>
                 )}
               </div>
-            </section>
-            {(isAdmin || staffDepartments.includes('administration')) && <Link href="/admin/phone-numbers" className="text-sm font-semibold text-blue-700 underline">電話番号申請の管理</Link>}
+            )}
+
+            {notice && <p role="status" className="border border-emerald-300 bg-emerald-50 p-3 text-xs font-bold text-emerald-900 rounded-sm">{notice}</p>}
+
+            {loading ? (
+              <ContentSkeleton rows={4} />
+            ) : !user ? (
+              <section className="bg-white border border-slate-300 rounded-sm p-6 text-xs space-y-3">
+                <p className="text-slate-700">電話窓口機能を利用するには東栄アカウントでログインしてください。</p>
+                <Link href="/toeiken" className="inline-block px-4 py-2 bg-slate-900 text-white font-semibold rounded-sm">
+                  ログイン画面へ移動
+                </Link>
+              </section>
+            ) : (
+              <div className="space-y-6">
+
+                {/* 1. 住民電話番号ステータス */}
+                <section className="bg-white border border-slate-300 rounded-sm p-6 space-y-4 text-xs">
+                  <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 tracking-tight">
+                    保有内部電話番号
+                  </h2>
+
+                  {phone?.status === 'active' ? (
+                    <div className="bg-slate-50 border border-slate-200 p-4 rounded-sm space-y-1">
+                      <span className="text-slate-500 text-[11px] block">有効な内部電話番号</span>
+                      <p className="text-xl font-bold font-mono tracking-wider text-slate-900 tabular-nums">
+                        {phone.phone_number}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-slate-600 leading-relaxed">
+                        行政各局窓口への発信には030形式内部番号の発行が必要です。
+                      </p>
+
+                      {!isActiveResident ? (
+                        <p className="bg-amber-50 border border-amber-200 p-3 text-amber-900 text-xs font-semibold">
+                          電話番号の申請には有効な住民登録が必要です。
+                        </p>
+                      ) : hasOpenRequest ? (
+                        <p className="bg-slate-100 border border-slate-300 p-3 text-slate-800 text-xs font-semibold font-mono">
+                          現在、申請された電話番号の審査手続きを行っています。
+                        </p>
+                      ) : (
+                        <div className="space-y-3 pt-1">
+                          <div>
+                            <label className="block font-semibold text-slate-800 mb-1">希望番号（任意）</label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              autoComplete="tel-national"
+                              maxLength={11}
+                              placeholder="例: 030-123-456"
+                              value={preferredNumber}
+                              onChange={(event) => setPreferredNumber(event.target.value)}
+                              className="w-full sm:w-1/2 border border-slate-300 px-3 py-2 text-xs bg-white rounded-sm focus:outline-none focus:border-slate-800 font-mono tabular-nums"
+                            />
+                            <p className="text-[11px] text-slate-500 mt-1">※空欄の場合はシステムから自動番号が発番されます。</p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void requestPhoneNumber()}
+                            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-sm transition-colors disabled:opacity-50 min-h-[44px]"
+                          >
+                            {busy ? '申請中...' : '電話番号の発行を申請'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                {/* 2. アクティブ通話パネル */}
+                {activeCall && (
+                  <section className="bg-slate-900 text-white border border-slate-800 rounded-sm p-6 space-y-4 text-xs" aria-live="polite">
+                    <div className="border-b border-slate-800 pb-2 flex items-center justify-between">
+                      <span className="font-bold text-emerald-400">{callStatusLabel(activeCall.status)}</span>
+                      <span className="font-mono text-[11px] text-slate-400">CALL-ID: {activeCall.id}</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-white">
+                        発信先窓口: {departments.find((department) => department.id === activeCall.department)?.label}
+                      </p>
+                      <p className="font-mono text-slate-300 text-xs">発信番号: {activeCall.caller_number}</p>
+                    </div>
+
+                    {activeCall.status === 'connecting' && (
+                      <div className="space-y-3 pt-2">
+                        <p className="text-emerald-300 font-semibold">{callState}</p>
+                        <audio ref={audioRef} autoPlay controls className="w-full h-10" aria-label="通話音声" />
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void toggleMute()}
+                            className="px-4 py-2 border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-sm flex items-center gap-1.5"
+                          >
+                            {muted ? <MicOff className="w-4 h-4 text-red-400" /> : <Mic className="w-4 h-4 text-emerald-400" />}
+                            <span>{muted ? 'マイクミュート解除' : 'マイクをミュート'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void endCall()}
+                        className="px-5 py-2.5 bg-red-800 hover:bg-red-700 text-white text-xs font-bold rounded-sm border border-red-600 transition-colors disabled:opacity-50 min-h-[44px]"
+                      >
+                        {activeCall.caller_id === user.id ? '発信を取り消す' : '通話を終了'}
+                      </button>
+                    </div>
+                  </section>
+                )}
+
+                {/* 3. 窓口発信フォーム */}
+                {phone?.status === 'active' && !activeCall && (
+                  <section className="bg-white border border-slate-300 rounded-sm p-6 space-y-4 text-xs">
+                    <h2 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 tracking-tight flex items-center gap-1.5">
+                      <PhoneIcon className="w-4 h-4 text-slate-700" />
+                      <span>行政各局窓口への発信</span>
+                    </h2>
+                    <p className="text-slate-600 leading-relaxed">
+                      通話を開始すると各窓口担当職員の端末に着信します。ブラウザーのマイク利用許可が必要です。
+                    </p>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block font-semibold text-slate-800 mb-1">発信先行政窓口</label>
+                        <select
+                          value={selectedDepartment}
+                          onChange={(event) => setSelectedDepartment(event.target.value as Department)}
+                          className="w-full sm:w-1/2 border border-slate-300 px-3 py-2 text-xs bg-white rounded-sm focus:outline-none focus:border-slate-800"
+                        >
+                          {departments.map((department) => (
+                            <option key={department.id} value={department.id}>{department.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void callDepartment(selectedDepartment)}
+                        className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-sm transition-colors disabled:opacity-50 min-h-[44px]"
+                      >
+                        {busy ? '接続処理中...' : '音声通話を開始'}
+                      </button>
+                    </div>
+                  </section>
+                )}
+
+                {/* 4. 窓口着信処理 (職員用) */}
+                {staffDepartments.length > 0 && (
+                  <section className="bg-white border border-slate-300 rounded-sm p-6 space-y-3 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                      <h2 className="text-sm font-bold text-slate-900 tracking-tight">担当窓口の着信待ち一覧</h2>
+                      <span className="text-[11px] text-slate-500">
+                        担当局: {staffDepartments.map((id) => departments.find((department) => department.id === id)?.label).join('、')}
+                      </span>
+                    </div>
+
+                    <div className="divide-y divide-slate-200">
+                      {queuedCalls.map((call) => (
+                        <article key={call.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <p className="font-bold text-slate-900">{departments.find((department) => department.id === call.department)?.label}</p>
+                            <p className="text-[11px] text-slate-500 font-mono tabular-nums">
+                              発信元: {call.caller_number} | {new Date(call.created_at).toLocaleString('ja-JP')}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={busy || Boolean(activeCall)}
+                            onClick={() => void acceptCall(call)}
+                            className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded-sm disabled:opacity-50 min-h-[38px]"
+                          >
+                            応答する
+                          </button>
+                        </article>
+                      ))}
+                      {!queuedCalls.length && (
+                        <p className="py-4 text-center text-slate-500 text-xs font-mono">現在、保留中の着信はありません。</p>
+                      )}
+                    </div>
+                  </section>
+                )}
+
+              </div>
+            )}
+
           </div>
-        )}
+
+          {/* 右側サイドバー (3割) */}
+          <aside className="space-y-6">
+
+            <div className="bg-white border border-slate-300 p-5 rounded-sm space-y-3 text-xs">
+              <h3 className="font-bold text-slate-900 border-b border-slate-200 pb-2 tracking-tight flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-slate-700" />
+                <span>通話セキュリティ規程</span>
+              </h3>
+              <p className="text-slate-600 leading-relaxed">
+                内部通話はWebRTC暗号化技術により直接相手端末と接続されます。録音および外部サーバーでのデータ保存は行われません。
+              </p>
+            </div>
+
+            <div className="bg-slate-100 border border-slate-300 p-4 rounded-sm text-xs">
+              <Link href="/toeiken/portal" className="font-bold text-blue-800 hover:underline block">
+                ← 住民ポータルへ戻る
+              </Link>
+            </div>
+
+          </aside>
+
+        </div>
       </main>
     </div>
   );

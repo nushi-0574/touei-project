@@ -117,27 +117,27 @@ export default function PoliceRadio() {
   }
 
   return (
-    <section className="bg-slate-900 border-2 border-slate-700 text-slate-100 font-sans shadow-lg overflow-hidden">
+    <section className="bg-white border border-slate-300 rounded-sm font-sans overflow-hidden">
       {/* 統括ヘッダー */}
-      <div className="bg-slate-950 border-b border-slate-800 p-4 sm:p-5">
+      <div className="bg-slate-900 text-white border-b border-slate-800 p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-slate-800 border border-slate-700 text-blue-400">
+            <div className="p-2 bg-slate-800 border border-slate-700 text-slate-200">
               <Radio className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[10px] font-mono tracking-widest text-blue-400 font-bold uppercase block">
+              <span className="text-[10px] font-mono tracking-widest text-emerald-400 font-bold uppercase block">
                 POLICE RADIO SYSTEM
               </span>
-              <h2 className="text-base font-bold text-slate-100">
+              <h2 className="text-base font-bold text-white tracking-tight">
                 警察無線統括通信卓 (県内・各種通信回線)
               </h2>
             </div>
           </div>
 
           <div className="flex items-center gap-2 text-xs font-mono">
-            <span className="text-slate-400">現在選択回線:</span>
-            <span className="bg-blue-950 text-blue-200 border border-blue-800 px-2.5 py-1 font-bold">
+            <span className="text-slate-400">通信回線:</span>
+            <span className="bg-slate-800 text-emerald-300 border border-slate-700 px-2.5 py-1 font-bold">
               {channel} チャンネル
             </span>
           </div>
@@ -152,10 +152,10 @@ export default function PoliceRadio() {
               role="tab"
               aria-selected={channel === item}
               onClick={() => selectChannel(item)}
-              className={`px-4 py-1.5 text-xs font-bold border transition-colors ${
+              className={`px-3.5 py-1.5 text-xs font-semibold border transition-colors ${
                 channel === item
-                  ? 'bg-blue-900 text-white border-blue-600 shadow'
-                  : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                  ? 'bg-slate-800 text-white border-slate-600'
+                  : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
               }`}
             >
               {item} チャンネル
@@ -168,40 +168,40 @@ export default function PoliceRadio() {
 
       {/* 無線ログ表示領域 */}
       <div
-        className="h-80 space-y-2.5 overflow-y-auto bg-slate-950 p-4 font-mono text-xs border-b border-slate-800"
+        className="h-80 space-y-2 overflow-y-auto bg-[#f8fafc] p-4 text-xs border-b border-slate-300"
         role="tabpanel"
         aria-label={`${channel}チャンネルの通信ログ`}
         aria-live="polite"
       >
         {loading ? (
-          <p className="text-center text-slate-500 py-12">暗号化無線回線に接続中...</p>
+          <p className="text-center text-slate-500 py-12 font-mono">暗号化無線回線に接続中...</p>
         ) : messages.length === 0 ? (
-          <p className="py-12 text-center text-slate-500">{channel}チャンネルの通信ログはありません。</p>
+          <p className="py-12 text-center text-slate-500 font-mono">{channel}チャンネルの通信ログはありません。</p>
         ) : messages.map((message) => (
-          <article key={message.id} className="bg-slate-900 border border-slate-800 p-3 space-y-1">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-1">
-              <span className="font-bold text-slate-200">{message.sender_name}</span>
-              <span className="text-[11px] text-slate-500 flex items-center gap-1">
-                <Clock className="w-3 h-3" />
+          <article key={message.id} className="bg-white border border-slate-200 p-3 space-y-1 rounded-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-1">
+              <span className="font-bold text-slate-900 text-xs">{message.sender_name}</span>
+              <span className="text-[11px] text-slate-500 font-mono tabular-nums flex items-center gap-1">
+                <Clock className="w-3 h-3 text-slate-400" />
                 {new Date(message.created_at).toLocaleString('ja-JP')}
               </span>
             </div>
-            <p className="whitespace-pre-wrap break-words text-slate-300 leading-relaxed font-sans text-xs pt-1">
+            <p className="whitespace-pre-wrap break-words text-slate-800 leading-relaxed text-xs pt-1 font-sans">
               {message.body}
             </p>
           </article>
         ))}
 
         {errorMessage && (
-          <div role="alert" className="bg-red-950 border border-red-800 p-3 text-red-200 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+          <div role="alert" className="bg-red-50 border border-red-300 p-3 text-red-900 text-xs flex items-center gap-2 rounded-sm">
+            <AlertCircle className="w-4 h-4 text-red-700 shrink-0" />
             <span>{errorMessage}</span>
           </div>
         )}
       </div>
 
       {/* 送信フォーム */}
-      <form onSubmit={sendMessage} className="flex items-stretch gap-2 bg-slate-950 p-3">
+      <form onSubmit={sendMessage} className="flex items-stretch gap-2 bg-slate-50 p-3">
         <label className="sr-only" htmlFor="police-radio-message">無線伝送メッセージ</label>
         <textarea
           id="police-radio-message"
@@ -210,12 +210,12 @@ export default function PoliceRadio() {
           maxLength={1000}
           rows={2}
           placeholder={`${channel} チャンネルへ無線通信メッセージを伝送`}
-          className="min-h-11 min-w-0 flex-1 resize-y bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-none"
+          className="min-h-[44px] min-w-0 flex-1 resize-y bg-white border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-slate-800 focus:outline-none rounded-sm"
         />
         <button
           type="submit"
           disabled={sending || !draft.trim()}
-          className="px-5 bg-blue-800 hover:bg-blue-700 text-white text-xs font-bold border border-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
+          className="px-5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
         >
           <Send className="w-3.5 h-3.5" />
           <span>{sending ? '送信中...' : '送信'}</span>

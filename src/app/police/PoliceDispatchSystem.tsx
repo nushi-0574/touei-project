@@ -15,7 +15,6 @@ import {
   Clock,
   Car,
   FileText,
-  Send,
   X
 } from 'lucide-react';
 
@@ -155,7 +154,7 @@ export default function PoliceDispatchSystem() {
       setReporterPhone('');
       setDetails('');
       setAssignedUnit('');
-      setToastMessage(`110番指令を登録・発令しました（管理番号: ${incidentNumber}）`);
+      setToastMessage(`110番指令を登録・発令しました (管理番号: ${incidentNumber})`);
       setTimeout(() => setToastMessage(''), 4000);
     } catch (err) {
       console.error('指令の起案に失敗しました:', err);
@@ -208,7 +207,7 @@ export default function PoliceDispatchSystem() {
 
       if (error) throw error;
 
-      setToastMessage(`指令情報を警察無線（県内チャンネル）へ一斉送信しました。`);
+      setToastMessage(`指令情報を警察無線（県内チャンネル）へ送信しました。`);
       setTimeout(() => setToastMessage(''), 4000);
     } catch (err) {
       console.error('無線送出失敗:', err);
@@ -226,38 +225,38 @@ export default function PoliceDispatchSystem() {
 
   const getPriorityClass = (priorityStr: string) => {
     const p = normalizePriority(priorityStr);
-    if (p === '第1種 (緊急指令)') return 'bg-red-950 text-red-200 border-red-800 font-bold';
-    if (p === '第2種 (重要指令)') return 'bg-amber-950 text-amber-200 border-amber-800 font-bold';
-    return 'bg-slate-800 text-slate-200 border-slate-700';
+    if (p === '第1種 (緊急指令)') return 'bg-red-800 text-white border-red-900 font-semibold';
+    if (p === '第2種 (重要指令)') return 'bg-amber-800 text-white border-amber-900 font-semibold';
+    return 'bg-slate-800 text-white border-slate-900';
   };
 
   const getStatusClass = (statusStr: string) => {
-    if (statusStr === '通報受付') return 'bg-red-900 text-white font-bold border-red-700';
-    if (statusStr === '現場急行指示') return 'bg-amber-800 text-white font-bold border-amber-600';
-    if (statusStr === '対応中' || statusStr === '現場対応中') return 'bg-blue-900 text-blue-100 font-bold border-blue-700';
-    if (statusStr === '完了' || statusStr === '事案完了') return 'bg-slate-800 text-slate-300 border-slate-700';
-    return 'bg-slate-700 text-slate-200 border-slate-600';
+    if (statusStr === '通報受付') return 'bg-red-50 text-red-900 border-red-200 font-bold';
+    if (statusStr === '現場急行指示') return 'bg-amber-50 text-amber-950 border-amber-200 font-bold';
+    if (statusStr === '対応中' || statusStr === '現場対応中') return 'bg-blue-50 text-blue-950 border-blue-200 font-bold';
+    if (statusStr === '完了' || statusStr === '事案完了') return 'bg-slate-100 text-slate-800 border-slate-300 font-bold';
+    return 'bg-slate-100 text-slate-700 border-slate-300';
   };
 
   return (
-    <section className="bg-slate-900 border-2 border-slate-700 text-slate-100 rounded-none shadow-lg overflow-hidden font-sans">
+    <section className="bg-white border border-slate-300 rounded-sm font-sans overflow-hidden">
       {/* 官公庁・警察指令台 ヘッダー */}
-      <div className="bg-slate-950 border-b border-slate-800 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-slate-900 text-white border-b border-slate-800 px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-slate-800 border border-slate-700 rounded-none text-red-400">
-            <ShieldAlert className="w-5 h-5" />
+          <div className="p-2 bg-slate-800 border border-slate-700 text-slate-100">
+            <ShieldAlert className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono tracking-widest text-red-400 uppercase font-bold">
+              <span className="text-[10px] font-mono tracking-widest text-emerald-400 font-bold uppercase">
                 EMERGENCY DISPATCH SYSTEM
               </span>
               <span className="text-[10px] bg-slate-800 text-slate-300 border border-slate-700 px-1.5 py-0.2">
                 機密性2 (庁内限定)
               </span>
             </div>
-            <h2 className="text-base font-bold text-slate-100 tracking-wide">
-              110番 警察緊急指令卓（統合発令・進捗管理）
+            <h2 className="text-base font-bold text-white tracking-tight">
+              110番 警察緊急指令卓 (統合発令・進捗管理)
             </h2>
           </div>
         </div>
@@ -265,33 +264,33 @@ export default function PoliceDispatchSystem() {
         <button
           type="button"
           onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-red-800 hover:bg-red-700 text-white text-xs font-bold rounded-none border border-red-600 transition-colors flex items-center justify-center gap-1.5 min-h-[38px]"
+          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-sm border border-slate-600 transition-colors flex items-center justify-center gap-1.5 min-h-[38px]"
         >
-          {showForm ? <X className="w-4 h-4" /> : <PlusCircle className="w-4 h-4" />}
+          {showForm ? <X className="w-4 h-4" /> : <PlusCircle className="w-4 h-4 text-emerald-400" />}
           <span>{showForm ? '入力フォーム閉じる' : '新規110番起案発令'}</span>
         </button>
       </div>
 
       {toastMessage && (
-        <div className="bg-emerald-950 border-b border-emerald-800 px-4 py-2.5 text-xs font-bold text-emerald-200 flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+        <div className="bg-emerald-50 border-b border-emerald-200 px-4 py-2.5 text-xs font-bold text-emerald-900 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div className="bg-red-950 border-b border-red-800 px-4 py-2.5 text-xs font-bold text-red-200 flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+        <div className="bg-red-50 border-b border-red-200 px-4 py-2.5 text-xs font-bold text-red-900 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-red-700 shrink-0" />
           <span>{errorMessage}</span>
         </div>
       )}
 
-      {/* 起案入力フォーム (実務的デザイン) */}
+      {/* 起案入力フォーム */}
       {showForm && (
-        <form onSubmit={handleCreateIncident} className="bg-slate-950 border-b border-slate-800 p-4 sm:p-5 space-y-4 text-xs">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <h3 className="font-bold text-slate-200 text-xs tracking-wider uppercase flex items-center gap-1.5">
-              <FileText className="w-4 h-4 text-red-400" />
+        <form onSubmit={handleCreateIncident} className="bg-slate-50 border-b border-slate-300 p-4 sm:p-5 space-y-4 text-xs">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <h3 className="font-bold text-slate-900 text-xs tracking-tight flex items-center gap-1.5">
+              <FileText className="w-4 h-4 text-slate-700" />
               新規110番通報 指令起案票
             </h3>
             <span className="text-[11px] text-slate-500 font-mono">FORM-REF: 110-NEW</span>
@@ -299,8 +298,8 @@ export default function PoliceDispatchSystem() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="lg:col-span-2">
-              <label className="block text-[11px] font-bold text-slate-400 mb-1">
-                事案名称・通報概要 <span className="text-red-400">*</span>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                事案名称・通報概要 <span className="text-red-700">*</span>
               </label>
               <input
                 type="text"
@@ -308,13 +307,13 @@ export default function PoliceDispatchSystem() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="例: 東栄駅北口付近における交差点交通事故"
-                className="w-full px-3 py-2 border border-slate-700 bg-slate-900 text-slate-100 text-xs rounded-none focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-900 text-xs rounded-sm focus:outline-none focus:border-slate-800"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 mb-1">
-                発生場所・現場位置 <span className="text-red-400">*</span>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                発生場所・現場位置 <span className="text-red-700">*</span>
               </label>
               <input
                 type="text"
@@ -322,16 +321,16 @@ export default function PoliceDispatchSystem() {
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="例: 東栄市中央町2-4 交差点"
-                className="w-full px-3 py-2 border border-slate-700 bg-slate-900 text-slate-100 text-xs rounded-none focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-900 text-xs rounded-sm focus:outline-none focus:border-slate-800"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 mb-1">事案種別</label>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">事案種別</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as typeof CATEGORIES[number])}
-                className="w-full px-3 py-2 border border-slate-700 bg-slate-900 text-slate-100 text-xs rounded-none focus:outline-none focus:border-blue-500 min-h-[36px]"
+                className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-900 text-xs rounded-sm focus:outline-none focus:border-slate-800 min-h-[36px]"
               >
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>{c}</option>
@@ -340,11 +339,11 @@ export default function PoliceDispatchSystem() {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 mb-1">指令優先度区分</label>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">指令優先度区分</label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as typeof PRIORITIES[number])}
-                className="w-full px-3 py-2 border border-slate-700 bg-slate-900 text-slate-100 text-xs rounded-none focus:outline-none focus:border-blue-500 min-h-[36px]"
+                className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-900 text-xs rounded-sm focus:outline-none focus:border-slate-800 min-h-[36px]"
               >
                 {PRIORITIES.map((p) => (
                   <option key={p} value={p}>{p}</option>
@@ -353,64 +352,64 @@ export default function PoliceDispatchSystem() {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 mb-1">出動指定部隊・車両</label>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">出動指定部隊・車両</label>
               <input
                 type="text"
                 value={assignedUnit}
                 onChange={(e) => setAssignedUnit(e.target.value)}
                 placeholder="例: 東栄101号、自ら隊2号"
-                className="w-full px-3 py-2 border border-slate-700 bg-slate-900 text-slate-100 text-xs rounded-none focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-900 text-xs rounded-sm focus:outline-none focus:border-slate-800"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 mb-1">通報者氏名</label>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">通報者氏名</label>
               <input
                 type="text"
                 value={reporterName}
                 onChange={(e) => setReporterName(e.target.value)}
                 placeholder="例: 通報者（一般住民）"
-                className="w-full px-3 py-2 border border-slate-700 bg-slate-900 text-slate-100 text-xs rounded-none focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-900 text-xs rounded-sm focus:outline-none focus:border-slate-800"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 mb-1">通報者連絡先電話番号</label>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">通報者連絡先電話番号</label>
               <input
                 type="text"
                 value={reporterPhone}
                 onChange={(e) => setReporterPhone(e.target.value)}
                 placeholder="例: 090-XXXX-XXXX"
-                className="w-full px-3 py-2 border border-slate-700 bg-slate-900 text-slate-100 text-xs rounded-none focus:outline-none focus:border-blue-500 font-mono"
+                className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-900 text-xs rounded-sm focus:outline-none focus:border-slate-800 font-mono tabular-nums"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 mb-1">指令補足情報・現場状況詳細</label>
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1">指令補足情報・現場状況詳細</label>
             <textarea
               rows={2}
               value={details}
               onChange={(e) => setDetails(e.target.value)}
               placeholder="現場の傷病者有無、車両特徴、進行方向等の詳細を入力"
-              className="w-full px-3 py-2 border border-slate-700 bg-slate-900 text-slate-100 text-xs rounded-none focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-900 text-xs rounded-sm focus:outline-none focus:border-slate-800"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-1 border-t border-slate-800">
+          <div className="flex justify-end gap-2 pt-1 border-t border-slate-200">
             <button
               type="button"
               onClick={() => setShowForm(false)}
-              className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700"
+              className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold rounded-sm"
             >
               キャンセル
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-5 py-1.5 bg-red-800 hover:bg-red-700 text-white text-xs font-bold border border-red-600 disabled:opacity-50"
+              className="px-5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-sm disabled:opacity-50"
             >
-              {submitting ? '発令中...' : '110番指令を本発令'}
+              {submitting ? '発令中...' : '110番指令を発令'}
             </button>
           </div>
         </form>
@@ -418,19 +417,19 @@ export default function PoliceDispatchSystem() {
 
       {/* 指令一覧・高密度テーブル表示 */}
       <div className="p-4 space-y-3">
-        <div className="flex items-center justify-between text-xs border-b border-slate-800 pb-2">
-          <span className="font-bold text-slate-300 tracking-wider">
-            現行発令中・過去指令案件一覧 ({incidents.length}件)
+        <div className="flex items-center justify-between text-xs border-b border-slate-200 pb-2">
+          <span className="font-bold text-slate-900 tracking-tight">
+            発令中・過去指令案件一覧 ({incidents.length}件)
           </span>
-          <span className="text-[11px] font-mono text-slate-400">
+          <span className="text-[11px] font-mono text-slate-500">
             DATABASE: REALTIME SYNC ACTIVE
           </span>
         </div>
 
         {loading ? (
-          <p className="text-center py-8 text-xs text-slate-400 font-mono">指令データを取得中...</p>
+          <p className="text-center py-8 text-xs text-slate-500 font-mono">指令データを取得中...</p>
         ) : incidents.length === 0 ? (
-          <div className="text-center py-10 bg-slate-950 border border-slate-800 text-xs text-slate-400 font-mono">
+          <div className="text-center py-10 bg-slate-50 border border-slate-200 text-xs text-slate-500 font-mono rounded-sm">
             現在、発令中の110番緊急指令データはありません。
           </div>
         ) : (
@@ -438,18 +437,18 @@ export default function PoliceDispatchSystem() {
             {incidents.map((item) => (
               <article
                 key={item.id}
-                className="bg-slate-950 border border-slate-800 p-3.5 space-y-2.5 text-xs hover:border-slate-700 transition-colors"
+                className="bg-white border border-slate-200 p-4 space-y-2.5 text-xs hover:border-slate-400 transition-colors rounded-sm"
               >
                 {/* 管理ヘッダー行 */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-slate-300 bg-slate-900 border border-slate-700 px-2 py-0.5 text-[11px]">
+                    <span className="font-mono font-bold text-slate-800 bg-slate-100 border border-slate-300 px-2 py-0.5 text-[11px] tabular-nums">
                       {item.incident_number}
                     </span>
                     <span className={`px-2 py-0.5 border text-[11px] ${getPriorityClass(item.priority)}`}>
                       {normalizePriority(item.priority)}
                     </span>
-                    <span className="font-bold text-slate-200 text-xs">
+                    <span className="font-bold text-slate-900 text-xs">
                       {item.category}
                     </span>
                   </div>
@@ -458,8 +457,8 @@ export default function PoliceDispatchSystem() {
                     <span className={`px-2.5 py-0.5 border text-[11px] ${getStatusClass(item.status)}`}>
                       {item.status}
                     </span>
-                    <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-slate-500" />
+                    <span className="text-[11px] text-slate-500 font-mono tabular-nums flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-slate-400" />
                       {new Date(item.created_at).toLocaleString('ja-JP')}
                     </span>
                   </div>
@@ -467,15 +466,15 @@ export default function PoliceDispatchSystem() {
 
                 {/* 件名 & 現場 */}
                 <div className="space-y-1">
-                  <h4 className="font-bold text-slate-100 text-sm">{item.title}</h4>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-300 text-xs">
+                  <h4 className="font-bold text-slate-900 text-sm tracking-tight">{item.title}</h4>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-700 text-xs">
                     <span className="flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="font-bold text-slate-400">発生場所:</span> {item.location}
+                      <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span className="font-semibold text-slate-800">発生場所:</span> {item.location}
                     </span>
                     {item.assigned_unit && (
-                      <span className="flex items-center gap-1 text-emerald-300 font-semibold bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 text-[11px]">
-                        <Car className="w-3.5 h-3.5 shrink-0" />
+                      <span className="flex items-center gap-1 text-slate-900 font-semibold bg-slate-100 border border-slate-300 px-2 py-0.5 text-[11px]">
+                        <Car className="w-3.5 h-3.5 shrink-0 text-slate-700" />
                         出動指定: {item.assigned_unit}
                       </span>
                     )}
@@ -484,14 +483,14 @@ export default function PoliceDispatchSystem() {
 
                 {/* 詳細記述 */}
                 {item.details && (
-                  <p className="bg-slate-900 border border-slate-800 p-2.5 text-slate-300 text-xs leading-relaxed whitespace-pre-wrap font-sans">
+                  <p className="bg-slate-50 border border-slate-200 p-2.5 text-slate-800 text-xs leading-relaxed whitespace-pre-wrap font-sans rounded-sm">
                     {item.details}
                   </p>
                 )}
 
                 {/* 通報者・操作バー */}
-                <div className="border-t border-slate-800 pt-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-                  <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-3">
+                <div className="border-t border-slate-100 pt-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-3">
                     {item.reporter_name && (
                       <span className="flex items-center gap-1">
                         <User className="w-3 h-3 text-slate-500" />
@@ -499,7 +498,7 @@ export default function PoliceDispatchSystem() {
                       </span>
                     )}
                     {item.reporter_phone && (
-                      <span className="flex items-center gap-1 font-mono">
+                      <span className="flex items-center gap-1 font-mono tabular-nums">
                         <Phone className="w-3 h-3 text-slate-500" />
                         TEL: {item.reporter_phone}
                       </span>
@@ -507,11 +506,11 @@ export default function PoliceDispatchSystem() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-400 text-[11px] font-bold">状態変更:</span>
+                    <span className="text-slate-600 text-[11px] font-semibold">状態変更:</span>
                     <select
                       value={item.status}
                       onChange={(e) => handleUpdateStatus(item.id, e.target.value as DispatchIncident['status'])}
-                      className="bg-slate-900 border border-slate-700 text-slate-200 px-2 py-1 text-xs font-bold rounded-none focus:outline-none"
+                      className="bg-white border border-slate-300 text-slate-900 px-2 py-1 text-xs font-semibold rounded-sm focus:outline-none focus:border-slate-800"
                     >
                       {STATUSES.map((s) => (
                         <option key={s} value={s}>{s}</option>
@@ -522,9 +521,9 @@ export default function PoliceDispatchSystem() {
                       type="button"
                       disabled={broadcastingId === item.id}
                       onClick={() => handleBroadcastToRadio(item)}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600 font-bold text-xs transition-colors flex items-center gap-1.5"
+                      className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 rounded-sm disabled:opacity-50"
                     >
-                      <Radio className="w-3.5 h-3.5 text-blue-400" />
+                      <Radio className="w-3.5 h-3.5 text-emerald-400" />
                       <span>{broadcastingId === item.id ? '送信中...' : '無線Chへ送信'}</span>
                     </button>
                   </div>
