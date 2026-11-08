@@ -119,17 +119,19 @@ export default function LegalConsentPage() {
   }, [router, confirmRequested]);
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans flex flex-col">
       <Header />
-      <main className="mx-auto max-w-xl px-4 py-10 sm:px-6">
-        <section className="rounded border border-slate-200 bg-white p-6">
-          <h1 className="text-xl font-bold text-slate-900">利用規約への同意</h1>
+      <main className="flex-1 max-w-xl mx-auto px-4 py-12 w-full">
+        <section className="rounded-sm border border-slate-300 bg-white p-6 space-y-4">
+          <h1 className="text-lg font-bold tracking-tight text-slate-900 border-b border-slate-200 pb-2">
+            利用規約およびプライバシーポリシーへの同意
+          </h1>
           {processing ? (
-            <div className="mt-5"><ContentSkeleton rows={2} /></div>
+            <div className="mt-4"><ContentSkeleton rows={2} /></div>
           ) : (
-            <>
-              <p className="mt-4 text-sm leading-6 text-slate-700">
-                アカウントを利用するには、利用規約とプライバシーポリシーを確認し、同意してください。
+            <div className="space-y-4 text-[13px]">
+              <p className="leading-relaxed text-slate-700">
+                アカウントを利用するには、利用規約とプライバシーポリシーの内容を確認し、同意を確定してください。
               </p>
               <LegalConsentField
                 checked={accepted}
@@ -143,19 +145,19 @@ export default function LegalConsentPage() {
                 type="button"
                 onClick={() => setConfirmRequested(true)}
                 disabled={!accepted}
-                className="mt-5 w-full rounded bg-blue-700 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-4 w-full rounded-sm bg-slate-900 hover:bg-slate-800 px-4 py-3 text-[13px] font-semibold text-white transition-colors disabled:opacity-50"
               >
-                同意して続ける
+                同意してサービスを利用開始する
               </button>
-              <p className="mt-4 text-sm text-slate-700">
-                同意は記録され、アカウントに紐づけて保管されます。
+              <p className="text-xs text-slate-500 leading-relaxed">
+                ※同意履歴はアカウント情報と紐づけて記録・保管されます。
               </p>
               {message && (
-                <p className="mt-4 text-sm text-slate-700">
-                  解決しない場合は<Link href="/login" className="font-semibold text-blue-700 underline">ログイン画面</Link>から再度お試しください。
+                <p className="text-xs text-slate-700">
+                  お手続きを再試行する場合は <Link href="/login" className="font-semibold text-blue-800 underline">ログイン画面</Link> からお進みください。
                 </p>
               )}
-            </>
+            </div>
           )}
         </section>
       </main>
