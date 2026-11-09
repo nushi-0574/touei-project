@@ -25,6 +25,7 @@ type Profile = {
   birth_date?: string | null;
   discord_id?: string | null;
   is_admin?: boolean;
+  is_super_admin?: boolean;
   is_police_staff?: boolean;
 };
 
@@ -282,8 +283,8 @@ export default function DashboardPage() {
                   <p><span className="font-semibold text-slate-900">ユーザーID:</span> <span className="font-mono text-[11px] text-slate-500">{user.id}</span></p>
                   <p>
                     <span className="font-semibold text-slate-900">アカウント権限:</span>{' '}
-                    <span className={profile?.is_admin ? 'text-blue-900 font-bold' : 'text-slate-700'}>
-                      {profile?.is_admin ? '主任管理者' : '一般住民'}
+                    <span className={profile?.is_admin || profile?.is_police_staff ? 'text-[#0046ff] font-bold' : 'text-slate-700'}>
+                      {profile?.is_super_admin ? '主任管理者' : profile?.is_admin ? '一般管理者' : profile?.is_police_staff ? '警察職員' : '一般住民'}
                     </span>
                   </p>
                 </div>

@@ -15,7 +15,7 @@ import { Shield, FileText, Map, PhoneCall, UserCheck, ChevronRight } from 'lucid
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<{ is_admin?: boolean; is_police_staff?: boolean } | null>(null);
+  const [profile, setProfile] = useState<{ is_admin?: boolean; is_super_admin?: boolean; is_police_staff?: boolean } | null>(null);
   const [isFireStaff, setIsFireStaff] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -37,7 +37,7 @@ export default function DashboardPage() {
         const [{ data, error }, { data: fireRole, error: fireRoleError }] = await Promise.all([
           supabase
             .from('profiles')
-            .select('is_admin, is_police_staff')
+            .select('is_admin, is_super_admin, is_police_staff')
             .eq('id', session.user.id)
             .maybeSingle(),
           supabase
@@ -252,7 +252,7 @@ export default function DashboardPage() {
               <div className="space-y-1.5 text-slate-700">
                 <p className="break-all font-mono font-semibold">{user?.email}</p>
                 <p className="text-slate-500">
-                  アカウント権限: <strong className="text-slate-900">{profile?.is_admin ? '主任管理者' : '一般アカウント'}</strong>
+                  アカウント権限: <strong className="text-slate-900">{profile?.is_super_admin ? '主任管理者' : profile?.is_admin ? '一般管理者' : profile?.is_police_staff ? '警察職員' : isFireStaff ? '消防職員' : '一般ユーザー'}</strong>
                 </p>
               </div>
               <div className="pt-2">

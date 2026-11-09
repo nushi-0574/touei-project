@@ -78,6 +78,7 @@ type ProfileData = {
   address: string | null;
   birth_date: string | null;
   preferred_locale: string;
+  resident_status?: string | null;
 };
 type ProfileChangeRequest = {
   id: string;
@@ -215,7 +216,7 @@ export default function ServiceCenter() {
       supabase.from('community_comments').select('id, post_id, user_id, body, created_at').eq('status', 'published').order('created_at').limit(200),
       supabase.from('support_tickets').select('id, subject, category, status, created_at').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(50),
       supabase.from('resident_cards').select('verification_token').eq('user_id', currentUser.id).maybeSingle(),
-      supabase.from('profiles').select('full_name, address, birth_date, preferred_locale').eq('id', currentUser.id).maybeSingle(),
+      supabase.from('profiles').select('full_name, address, birth_date, preferred_locale, resident_status').eq('id', currentUser.id).maybeSingle(),
       supabase.from('profile_change_requests').select('id, requested_changes, reason, status, staff_response, created_at').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(50),
       supabase.from('resident_document_requests').select('id, document_type, purpose, status, staff_response, document_number, verification_token, issued_at, created_at').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(50),
       supabase.from('resident_notification_preferences').select('category, enabled').eq('user_id', currentUser.id),

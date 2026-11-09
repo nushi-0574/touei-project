@@ -1030,7 +1030,7 @@ export default function AdminPage() {
                       >
                         {user.is_police_staff ? '警察職員を解除' : '警察職員に設定'}
                       </button>
-                      {isSuperAdmin && (
+                      {isSuperAdmin ? (
                         <button
                           type="button"
                           disabled={user.is_super_admin || updatingRoleId === user.id}
@@ -1038,10 +1038,14 @@ export default function AdminPage() {
                             isAdmin: !user.is_admin,
                             isPoliceStaff: user.is_police_staff,
                           })}
-                          className={`px-3 py-1 rounded text-[11px] font-semibold ${user.is_admin ? 'border border-amber-300 text-amber-800 bg-amber-50' : 'border border-blue-300 text-blue-800 bg-blue-50'} disabled:opacity-50`}
+                          className={`px-3 py-1 rounded-sm text-[11px] font-bold ${user.is_admin ? 'border border-amber-300 text-amber-900 bg-amber-50' : 'border border-blue-300 text-blue-900 bg-blue-50'} disabled:opacity-50`}
                         >
                           {user.is_admin ? '管理者権限を解除' : '管理者権限を付与'}
                         </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-500 font-semibold bg-slate-100 border border-slate-300 px-2.5 py-1 rounded-sm">
+                          管理者権限変更: 主任管理者専用
+                        </span>
                       )}
                     </div>
                   </div>
