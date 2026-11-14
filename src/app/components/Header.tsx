@@ -177,7 +177,7 @@ export default function Header() {
         {/* ブランドロゴ (東栄ブルー) */}
         <div className="flex items-center gap-3">
           <Link href="/" className="text-sm font-bold tracking-tight text-[#0046ff] hover:text-blue-700">
-            東栄県公式ポータル
+            東栄ポータル
           </Link>
         </div>
 
