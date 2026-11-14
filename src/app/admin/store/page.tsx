@@ -7,7 +7,7 @@ import Breadcrumbs from '../../components/Breadcrumbs';
 import { ContentSkeleton } from '@/src/app/components/LoadingScreen';
 import { supabase } from '../../../lib/supabase';
 import { getErrorMessage } from '../../../lib/errors';
-import { Package, Plus, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Package, Plus, ShieldCheck, CheckCircle2, AlertCircle, Settings } from 'lucide-react';
 
 type Product = {
   id: string;
@@ -35,10 +35,17 @@ export default function AdminStorePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [notice, setNotice] = useState('');
 
-  // 登録フォーム
+  // サイト情報編集フォーム
+  const [siteTitle, setSiteTitle] = useState('東栄ポータル');
+  const [announcementText, setAnnouncementText] = useState('');
+  const [supportEmail, setSupportEmail] = useState('');
+  const [footerText, setFooterText] = useState('© 2026 Toei Portal All rights reserved.');
+
+  // 商品登録フォーム
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
@@ -70,9 +77,10 @@ export default function AdminStorePage() {
           throw new Error('管理者権限が必要です。');
         }
 
-        const [prodRes, ordRes] = await Promise.all([
+        const [prodRes, ordRes, setRes] = await Promise.all([
           supabase.from('digital_products').select('*').order('created_at', { ascending: false }),
           supabase.from('digital_orders').select('id, order_number, amount_paid, status, created_at, user_id, product:product_id(title)').order('created_at', { ascending: false }).limit(50),
+          supabase.from('site_settings').select('*').eq('id', 1).maybeSingle(),
         ]);
 
         if (prodRes.error) throw prodRes.error;
@@ -84,6 +92,13 @@ export default function AdminStorePage() {
             ...o,
             product: Array.isArray(o.product) ? o.product[0] ?? null : o.product,
           })));
+
+          if (setRes.data) {
+            setSiteTitle(setRes.data.site_title || '東栄ポータル');
+            setAnnouncementText(setRes.data.announcement_text || '');
+            setSupportEmail(setRes.data.support_email || '');
+            setFooterText(setRes.data.footer_text || '© 2026 Toei Portal All rights reserved.');
+          }
         }
       } catch (err) {
         console.error('管理者ストア情報の読み込みに失敗しました:', err);
@@ -98,6 +113,45 @@ export default function AdminStorePage() {
       active = false;
     };
   }, []);
+
+  const handleSaveSiteSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    setErrorMessage('');
+    setNotice('');
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session) throw new Error('ログインしてください。');
+
+      const response = await fetch('/api/admin/site-settings', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          site_title: siteTitle,
+          announcement_text: announcementText,
+          support_email: supportEmail,
+          footer_text: footerText,
+        }),
+      });
+
+      const payload = await response.json() as { success?: boolean; error?: string };
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || 'サイト情報の更新に失敗しました。');
+      }
+
+      setNotice('サイト基本情報を更新しました。');
+      setTimeout(() => setNotice(''), 4000);
+    } catch (err) {
+      console.error('Site settings save error:', err);
+      setErrorMessage(getErrorMessage(err, 'サイト情報の保存に失敗しました。'));
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,6 +209,7 @@ export default function AdminStorePage() {
       setContentFile(null);
       setPreviewAudioFile(null);
       setNotice('新しいデジタル商品を登録しました。');
+      setTimeout(() => setNotice(''), 4000);
     } catch (err) {
       console.error('商品登録エラー:', err);
       setErrorMessage(getErrorMessage(err, '商品の登録に失敗しました。'));
@@ -170,13 +225,13 @@ export default function AdminStorePage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full space-y-6">
         <Breadcrumbs items={[
           { label: '管理者パネル', href: '/admin' },
-          { label: 'デジタル商品管理' }
+          { label: 'デジタル商品・サイト管理' }
         ]} />
 
         {/* 7:3 非対称レイアウト */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 items-start mt-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8 items-start mt-4">
 
-          {/* メインエリア (7割) */}
+          {/* メインエリア (7割): 商品一覧・取引履歴 */}
           <div className="space-y-6">
 
             <section className="bg-slate-50 border border-slate-200 p-6 rounded-sm space-y-2">
@@ -187,7 +242,7 @@ export default function AdminStorePage() {
                 デジタル商品・取引管理パネル
               </h1>
               <p className="text-[13px] text-slate-600 leading-relaxed">
-                デジタル商品の登録、納品ファイルのアップロード、試聴音声プレビューの設定、および顧客の注文・決済履歴を確認できます。
+                デジタル商品の追加・編集、試聴音声の設定、および顧客注文履歴の確認を行います。
               </p>
             </section>
 
@@ -280,14 +335,77 @@ export default function AdminStorePage() {
 
           </div>
 
-          {/* 右側サイドバー (3割) - 新規商品登録フォーム */}
+          {/* 右側サイドバー (3割): 新規商品登録 ＆ サイト情報編集 */}
           <aside className="space-y-6">
 
+            {/* サイト情報編集フォーム */}
+            <div className="bg-white border border-slate-200 p-5 rounded-sm space-y-4 text-xs">
+              <div className="border-b border-slate-200 pb-2">
+                <h2 className="font-bold text-slate-900 text-sm tracking-tight flex items-center gap-1.5">
+                  <Settings className="w-4 h-4 text-slate-700" />
+                  <span>サイト情報・基本設定編集</span>
+                </h2>
+              </div>
+
+              <form onSubmit={handleSaveSiteSettings} className="space-y-3">
+                <div>
+                  <label className="block font-semibold text-slate-800 mb-1">サイトタイトル</label>
+                  <input
+                    type="text"
+                    value={siteTitle}
+                    onChange={(e) => setSiteTitle(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-sm bg-white text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-800 mb-1">トップお知らせ文言</label>
+                  <textarea
+                    rows={2}
+                    value={announcementText}
+                    onChange={(e) => setAnnouncementText(e.target.value)}
+                    placeholder="お知らせ情報"
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-sm bg-white text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-800 mb-1">サポート連絡先メール</label>
+                  <input
+                    type="email"
+                    value={supportEmail}
+                    onChange={(e) => setSupportEmail(e.target.value)}
+                    placeholder="support@example.com"
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-sm bg-white text-xs font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-800 mb-1">フッターコピーライト</label>
+                  <input
+                    type="text"
+                    value={footerText}
+                    onChange={(e) => setFooterText(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-sm bg-white text-xs"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={savingSettings}
+                  className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-sm transition-colors disabled:opacity-50 min-h-[38px]"
+                >
+                  {savingSettings ? '保存中...' : 'サイト情報を保存'}
+                </button>
+              </form>
+            </div>
+
+            {/* 新規商品登録フォーム */}
             <div className="bg-white border border-slate-200 p-5 rounded-sm space-y-4 text-xs">
               <div className="border-b border-slate-200 pb-2">
                 <h2 className="font-bold text-slate-900 text-sm tracking-tight flex items-center gap-1.5">
                   <Plus className="w-4 h-4 text-[#0046ff]" />
-                  <span>新規デジタル商品登録</span>
+                  <span>新規デジタル商品追加</span>
                 </h2>
               </div>
 
@@ -387,7 +505,7 @@ export default function AdminStorePage() {
                   disabled={submitting}
                   className="w-full py-2.5 bg-[#0046ff] hover:bg-blue-700 text-white font-bold text-xs rounded-sm transition-colors disabled:opacity-50 min-h-[40px]"
                 >
-                  {submitting ? '登録中...' : 'デジタル商品を登録'}
+                  {submitting ? '登録中...' : 'デジタル商品を追加'}
                 </button>
               </form>
             </div>
