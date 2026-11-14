@@ -3297,4 +3297,37 @@ SELECT email, is_admin, is_super_admin
 FROM public.profiles
 WHERE lower(btrim(email)) = 'reimari.nusi@gmail.com';
 
+-- -----------------------------------------------------------------------------
+-- 20261114010000_storage_buckets.sql
+-- -----------------------------------------------------------------------------
+insert into storage.buckets (id, name, public)
+values
+  ('digital-product-contents', 'digital-product-contents', false),
+  ('digital-product-previews', 'digital-product-previews', true),
+  ('resident-avatars', 'resident-avatars', false)
+on conflict (id) do nothing;
+
+drop policy if exists "digital_product_contents_admin_all" on storage.objects;
+create policy "digital_product_contents_admin_all"
+  on storage.objects for all
+  using (bucket_id = 'digital-product-contents' and exists (select 1 from public.profiles where id = auth.uid() and is_admin = true))
+  with check (bucket_id = 'digital-product-contents' and exists (select 1 from public.profiles where id = auth.uid() and is_admin = true));
+
+drop policy if exists "digital_product_previews_public_select" on storage.objects;
+create policy "digital_product_previews_public_select"
+  on storage.objects for select
+  using (bucket_id = 'digital-product-previews');
+
+drop policy if exists "digital_product_previews_admin_all" on storage.objects;
+create policy "digital_product_previews_admin_all"
+  on storage.objects for all
+  using (bucket_id = 'digital-product-previews' and exists (select 1 from public.profiles where id = auth.uid() and is_admin = true))
+  with check (bucket_id = 'digital-product-previews' and exists (select 1 from public.profiles where id = auth.uid() and is_admin = true));
+
+drop policy if exists "resident_avatars_all" on storage.objects;
+create policy "resident_avatars_all"
+  on storage.objects for all
+  using (bucket_id = 'resident-avatars' and auth.uid() is not null)
+  with check (bucket_id = 'resident-avatars' and auth.uid() is not null);
+
 COMMIT;
