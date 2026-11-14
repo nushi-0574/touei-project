@@ -2754,28 +2754,32 @@ set search_path = ''
 as $$
 declare
   target_call public.phone_calls%rowtype;
+  current_user_id uuid;
 begin
-  if final_status not in ('completed', 'cancelled') then
+  current_user_id := (select auth.uid());
+  if final_status not in ('completed', 'cancelled', 'declined') then
     raise exception 'Invalid telephone call status';
   end if;
+
   select * into target_call
   from public.phone_calls
   where id = target_call_id
   for update;
+
   if not found or target_call.status not in ('queued', 'connecting') then
     raise exception 'This telephone call is no longer active';
   end if;
-  if final_status = 'cancelled' then
-    if target_call.caller_id <> (select auth.uid()) then
-      raise exception 'Only the caller can cancel this call';
-    end if;
-  elsif target_call.assigned_to is distinct from (select auth.uid()) then
-    raise exception 'Only the assigned staff member can end this call';
+
+  if target_call.caller_id <> current_user_id
+     and target_call.assigned_to is distinct from current_user_id
+     and not public.can_manage_phone_department(target_call.department) then
+    raise exception 'You are not authorized to manage this call';
   end if;
 
   update public.phone_calls
   set status = final_status, ended_at = now()
   where id = target_call_id;
+
   delete from public.phone_call_signals where call_id = target_call_id;
 end;
 $$;
@@ -3175,6 +3179,92 @@ begin
   end if;
 end $$;
 
+-- -----------------------------------------------------------------------------
+-- 20261109000000_digital_products.sql
+-- -----------------------------------------------------------------------------
+create table if not exists public.digital_products (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  slug text unique not null,
+  description text not null default '',
+  price_amount integer not null default 0,
+  currency text not null default 'jpy',
+  billing_type text not null default 'one_time',
+  stripe_price_id text,
+  file_path text,
+  preview_audio_path text,
+  is_published boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.digital_orders (
+  id uuid primary key default gen_random_uuid(),
+  order_number text unique not null,
+  user_id uuid references public.profiles(id) on delete cascade,
+  product_id uuid references public.digital_products(id) on delete restrict,
+  stripe_session_id text unique,
+  stripe_payment_intent text,
+  amount_paid integer not null default 0,
+  status text not null default 'completed',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.digital_licenses (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid references public.digital_products(id) on delete cascade,
+  order_id uuid references public.digital_orders(id) on delete set null,
+  user_id uuid references public.profiles(id) on delete set null,
+  license_key text not null,
+  status text not null default 'available',
+  assigned_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_digital_products_slug on public.digital_products(slug);
+create index if not exists idx_digital_orders_user_id on public.digital_orders(user_id);
+create index if not exists idx_digital_licenses_user_id on public.digital_licenses(user_id);
+
+alter table public.digital_products enable row level security;
+alter table public.digital_orders enable row level security;
+alter table public.digital_licenses enable row level security;
+
+drop policy if exists "digital_products_select_public" on public.digital_products;
+create policy "digital_products_select_public"
+  on public.digital_products for select
+  using (is_published = true or exists (select 1 from public.profiles where id = auth.uid() and is_admin = true));
+
+drop policy if exists "digital_products_admin_all" on public.digital_products;
+create policy "digital_products_admin_all"
+  on public.digital_products for all
+  using (exists (select 1 from public.profiles where id = auth.uid() and is_admin = true))
+  with check (exists (select 1 from public.profiles where id = auth.uid() and is_admin = true));
+
+drop policy if exists "digital_orders_select_own" on public.digital_orders;
+create policy "digital_orders_select_own"
+  on public.digital_orders for select
+  using (user_id = auth.uid() or exists (select 1 from public.profiles where id = auth.uid() and is_admin = true));
+
+drop policy if exists "digital_orders_insert_service" on public.digital_orders;
+create policy "digital_orders_insert_service"
+  on public.digital_orders for insert
+  with check (user_id = auth.uid() or exists (select 1 from public.profiles where id = auth.uid() and is_admin = true));
+
+drop policy if exists "digital_licenses_select_own" on public.digital_licenses;
+create policy "digital_licenses_select_own"
+  on public.digital_licenses for select
+  using (user_id = auth.uid() or exists (select 1 from public.profiles where id = auth.uid() and is_admin = true));
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'digital_products'
+  ) then
+    alter publication supabase_realtime add table public.digital_products;
+  end if;
+end $$;
+
 -- Final verification summary (false indicates a required migration object is absent).
 SELECT object_name, to_regclass(object_name) IS NOT NULL AS installed
 FROM (VALUES
@@ -3183,6 +3273,9 @@ FROM (VALUES
   ('public.staff_roles'),
   ('public.police_radio_messages'),
   ('public.police_dispatch_incidents'),
+  ('public.digital_products'),
+  ('public.digital_orders'),
+  ('public.digital_licenses'),
   ('public.resident_conversations'),
   ('public.resident_conversation_members'),
   ('public.resident_messages'),

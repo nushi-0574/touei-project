@@ -155,28 +155,32 @@ set search_path = ''
 as $$
 declare
   target_call public.phone_calls%rowtype;
+  current_user_id uuid;
 begin
-  if final_status not in ('completed', 'cancelled') then
+  current_user_id := (select auth.uid());
+  if final_status not in ('completed', 'cancelled', 'declined') then
     raise exception 'Invalid telephone call status';
   end if;
+
   select * into target_call
   from public.phone_calls
   where id = target_call_id
   for update;
+
   if not found or target_call.status not in ('queued', 'connecting') then
     raise exception 'This telephone call is no longer active';
   end if;
-  if final_status = 'cancelled' then
-    if target_call.caller_id <> (select auth.uid()) then
-      raise exception 'Only the caller can cancel this call';
-    end if;
-  elsif target_call.assigned_to is distinct from (select auth.uid()) then
-    raise exception 'Only the assigned staff member can end this call';
+
+  if target_call.caller_id <> current_user_id
+     and target_call.assigned_to is distinct from current_user_id
+     and not public.can_manage_phone_department(target_call.department) then
+    raise exception 'You are not authorized to manage this call';
   end if;
 
   update public.phone_calls
   set status = final_status, ended_at = now()
   where id = target_call_id;
+
   delete from public.phone_call_signals where call_id = target_call_id;
 end;
 $$;
