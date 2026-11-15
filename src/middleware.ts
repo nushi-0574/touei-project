@@ -43,36 +43,26 @@ export function middleware(request: NextRequest) {
       const statusText = document.getElementById('status-text');
       const contentBox = document.getElementById('content-box');
 
-      let step = 1;
       let dotCount = 1;
-      let qCount = 1;
 
       const interval = setInterval(() => {
-        if (step === 1) {
-          dotCount = (dotCount % 3) + 1;
-          statusText.textContent = '接続を試みています' + '.'.repeat(dotCount);
-        } else if (step === 2) {
-          qCount = (qCount % 3) + 1;
-          statusText.textContent = 'なにかがおかしいようです' + '?'.repeat(qCount);
-        } else if (step === 3) {
-          statusText.textContent = '申し訳ございません';
-        } else if (step === 4) {
-          clearInterval(interval);
-          contentBox.innerHTML = \`
-            <div class="code">503 SERVICE UNAVAILABLE</div>
-            <h1>サーバーが存在しません</h1>
-            <p>The <b style="color: #0f172a;">Osaka (Asia 2)</b> server is not a valid server for your region.</p>
-            <div class="footer">
-              東栄ポータル運営事務局<br />
-              このメッセージはバックアップシステムからの自動送信です
-            </div>
-          \`;
-        }
+        dotCount = (dotCount % 3) + 1;
+        statusText.textContent = '接続を試みています' + '.'.repeat(dotCount);
       }, 700);
 
-      setTimeout(() => { step = 2; }, 2100);
-      setTimeout(() => { step = 3; }, 4200);
-      setTimeout(() => { step = 4; }, 5800);
+      // 約3.2秒後に最終503画面へ直接遷移
+      setTimeout(() => {
+        clearInterval(interval);
+        contentBox.innerHTML = \`
+          <div class="code">503 SERVICE UNAVAILABLE</div>
+          <h1>サーバーが存在しません</h1>
+          <p>The <b style="color: #0f172a;">Osaka (Asia 2)</b> server is not a valid server for your region.</p>
+          <div class="footer">
+            東栄ポータル運営事務局<br />
+            このメッセージはバックアップシステムからの自動送信です
+          </div>
+        \`;
+      }, 3200);
     })();
   </script>
 </body>
